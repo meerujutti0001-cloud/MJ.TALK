@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Loader2, Mail } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@mjtalk.com";
 
@@ -13,7 +14,6 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading]                 = useState(false);
   const [error, setError]                     = useState<string | null>(null);
-  const [verifyPending, setVerifyPending]     = useState(false);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,6 +31,7 @@ export default function SignupPage() {
       return;
     }
 
+    // Step 1 — create account + org via API
     const res  = await fetch("/api/auth/signup", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
@@ -44,9 +45,17 @@ export default function SignupPage() {
       return;
     }
 
-    // Account created — user must verify their email before signing in
-    setVerifyPending(true);
-    setLoading(false);
+    // Step 2 — sign in immediately (account is pre-confirmed)
+    const supabase = createClient();
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInError) {
+      // Account was created, just couldn't auto-login — send to login page
+      window.location.href = "/login";
+      return;
+    }
+
+    // Step 3 — go to dashboard
+    window.location.href = "/dashboard";
   };
 
   const inputStyle: React.CSSProperties = {
@@ -56,77 +65,6 @@ export default function SignupPage() {
     boxSizing: "border-box",
   };
 
-  /* ── Email verification pending screen ── */
-  if (verifyPending) {
-    return (
-      <div style={{
-        minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-        padding: "1rem",
-        background: "linear-gradient(135deg, #0a0f1e 0%, #0d1b3e 50%, #122157 100%)",
-        fontFamily: "'Inter', sans-serif",
-      }}>
-        <div style={{ position: "fixed", inset: 0, pointerEvents: "none", background: "radial-gradient(ellipse 60% 60% at 30% 70%, rgba(29,191,160,0.08) 0%, transparent 60%)" }} />
-
-        <div style={{ width: "100%", maxWidth: "420px", position: "relative", textAlign: "center" }}>
-          {/* Logo */}
-          <div style={{ marginBottom: "2rem" }}>
-            <div style={{ fontFamily: "Inter, system-ui, sans-serif", fontWeight: 800, fontSize: "1.8rem", color: "#fff", letterSpacing: "-0.02em" }}>
-              MJ<span style={{ color: "#1dbfa0" }}>.</span>TALK
-            </div>
-          </div>
-
-          <div style={{
-            background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)",
-            borderRadius: "16px", padding: "2.5rem 2rem", backdropFilter: "blur(12px)",
-          }}>
-            <div style={{
-              width: "64px", height: "64px", borderRadius: "50%",
-              background: "rgba(29,191,160,0.15)", border: "1px solid rgba(29,191,160,0.3)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              margin: "0 auto 1.5rem",
-            }}>
-              <Mail size={28} color="#1dbfa0" />
-            </div>
-
-            <h2 style={{ fontWeight: 700, fontSize: "1.35rem", color: "#fff", marginBottom: "0.75rem" }}>
-              Check your inbox
-            </h2>
-            <p style={{ fontSize: "0.9rem", color: "rgba(255,255,255,0.6)", lineHeight: 1.7, marginBottom: "0.5rem" }}>
-              We sent a verification link to
-            </p>
-            <p style={{ fontSize: "0.95rem", color: "#1dbfa0", fontWeight: 600, marginBottom: "1.5rem", wordBreak: "break-all" }}>
-              {email}
-            </p>
-            <p style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.45)", lineHeight: 1.6, marginBottom: "2rem" }}>
-              Click the link in the email to confirm your account. Check your spam folder if you don&apos;t see it within a few minutes.
-            </p>
-
-            <Link href="/login" style={{
-              display: "block", width: "100%", padding: "0.75rem",
-              background: "#0d8585", color: "#fff", fontWeight: 700,
-              fontSize: "0.9rem", borderRadius: "8px", textDecoration: "none",
-              textAlign: "center",
-            }}>
-              Go to Sign In
-            </Link>
-
-            {/* Contact support */}
-            <p style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.35)", marginTop: "1.5rem" }}>
-              Having trouble?{" "}
-              <a
-                href={`mailto:${SUPPORT_EMAIL}?subject=Signup%20issue%20-%20${encodeURIComponent(email)}`}
-                style={{ color: "#1dbfa0", textDecoration: "none", fontWeight: 500 }}
-              >
-                Contact support
-              </a>
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  /* ── Signup form ── */
   return (
     <div style={{
       minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
@@ -161,10 +99,10 @@ export default function SignupPage() {
 
           <form onSubmit={handleSignup} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             {[
-              { id: "orgName",         label: "Organization / Business Name", type: "text",     placeholder: "Acme Corp",         value: orgName,         onChange: setOrgName },
-              { id: "email",           label: "Email",                        type: "email",    placeholder: "you@example.com",   value: email,           onChange: setEmail },
-              { id: "password",        label: "Password",                     type: "password", placeholder: "••••••••",          value: password,        onChange: setPassword },
-              { id: "confirmPassword", label: "Confirm Password",             type: "password", placeholder: "••••••••",          value: confirmPassword, onChange: setConfirmPassword },
+              { id: "orgName",         label: "Organization / Business Name", type: "text",     placeholder: "Acme Corp",       value: orgName,         onChange: setOrgName },
+              { id: "email",           label: "Email",                        type: "email",    placeholder: "you@example.com", value: email,           onChange: setEmail },
+              { id: "password",        label: "Password",                     type: "password", placeholder: "••••••••",        value: password,        onChange: setPassword },
+              { id: "confirmPassword", label: "Confirm Password",             type: "password", placeholder: "••••••••",        value: confirmPassword, onChange: setConfirmPassword },
             ].map(f => (
               <div key={f.id}>
                 <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 500, color: "rgba(255,255,255,0.7)", marginBottom: "0.4rem" }}>{f.label}</label>
@@ -202,13 +140,9 @@ export default function SignupPage() {
             <Link href="/login" style={{ color: "#1dbfa0", fontWeight: 600, textDecoration: "none" }}>Sign in</Link>
           </p>
 
-          {/* Contact support */}
           <p style={{ textAlign: "center", fontSize: "0.8rem", color: "rgba(255,255,255,0.3)", marginTop: "0.75rem" }}>
             Need help?{" "}
-            <a
-              href={`mailto:${SUPPORT_EMAIL}?subject=Signup%20help`}
-              style={{ color: "#1dbfa0", textDecoration: "none" }}
-            >
+            <a href={`mailto:${SUPPORT_EMAIL}?subject=Signup%20help`} style={{ color: "#1dbfa0", textDecoration: "none" }}>
               Contact support
             </a>
           </p>

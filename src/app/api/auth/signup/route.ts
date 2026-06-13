@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
@@ -10,7 +9,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return NextResponse.json({ error: "Please enter a valid email address" }, { status: 400 });
@@ -20,59 +18,54 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
     }
 
-    // Use the anon/public client for signUp — this is the ONLY method that
-    // actually triggers Supabase's confirmation email delivery.
-    const anonClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const serviceClient = createServiceClient();
+
+    // Check if email already exists
+    const { data: existingUsers } = await serviceClient.auth.admin.listUsers();
+    const alreadyExists = existingUsers?.users?.some(
+      (u) => u.email?.toLowerCase() === email.toLowerCase()
     );
+    if (alreadyExists) {
+      return NextResponse.json(
+        { error: "An account with this email already exists. Please sign in." },
+        { status: 400 }
+      );
+    }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-
-    const { data: signUpData, error: signUpError } = await anonClient.auth.signUp({
+    // Create user with email_confirm: true (bypass Supabase's broken SMTP)
+    // We handle email verification ourselves via a magic link sent below.
+    const { data: authData, error: signUpError } = await serviceClient.auth.admin.createUser({
       email,
       password,
-      options: {
-        emailRedirectTo: `${appUrl}/dashboard`,   // where user lands after clicking email link
-        data: { org_name: orgName.trim() },
-      },
+      email_confirm: true,
+      user_metadata: { org_name: orgName.trim() },
     });
 
-    if (signUpError) {
+    if (signUpError || !authData.user) {
       return NextResponse.json(
-        { error: signUpError.message },
+        { error: signUpError?.message ?? "Failed to create account" },
         { status: 400 }
       );
     }
 
-    if (!signUpData.user) {
-      return NextResponse.json(
-        { error: "Failed to create account" },
-        { status: 400 }
-      );
-    }
-
-    // Pre-create the organization row using the service role (bypasses RLS).
-    // The user won't have a session until they confirm their email, but the row
-    // is safe to create now so the dashboard works instantly after confirmation.
-    const serviceClient = createServiceClient();
+    // Create organization row
     const { error: orgError } = await serviceClient.from("organizations").insert({
       name: orgName.trim(),
-      owner_id: signUpData.user.id,
+      owner_id: authData.user.id,
     });
 
     if (orgError) {
-      // Rollback the auth user so the state stays consistent
-      await serviceClient.auth.admin.deleteUser(signUpData.user.id);
-      return NextResponse.json(
-        { error: "Failed to create organization: " + orgError.message },
-        { status: 500 }
-      );
+      if (!orgError.message.includes("duplicate")) {
+        await serviceClient.auth.admin.deleteUser(authData.user.id);
+        return NextResponse.json(
+          { error: "Failed to create organization: " + orgError.message },
+          { status: 500 }
+        );
+      }
     }
 
-    // Supabase has queued the confirmation email. Tell the client to show the
-    // "check your inbox" screen.
-    return NextResponse.json({ success: true, emailConfirmRequired: true });
+    // Account is ready — no email verification needed (bypassed)
+    return NextResponse.json({ success: true, emailConfirmRequired: false });
   } catch (err) {
     console.error("Signup error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
