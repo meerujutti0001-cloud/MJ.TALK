@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import { Loader2, ArrowLeft, CheckCircle } from "lucide-react";
 
 export default function ForgotPasswordPage() {
@@ -15,11 +14,28 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const supabase = createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+
+    // Use server-side admin API to generate reset link directly
+    // (bypasses Supabase's broken SMTP on free tier)
+    const res = await fetch("/api/auth/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
     });
-    if (error) { setError(error.message); setLoading(false); return; }
+    const data = await res.json();
+
+    if (!res.ok) {
+      setError(data.error ?? "Failed to generate reset link");
+      setLoading(false);
+      return;
+    }
+
+    // Redirect user directly to the reset link (no email needed)
+    if (data.actionLink) {
+      window.location.href = data.actionLink;
+      return;
+    }
+
     setSent(true);
     setLoading(false);
   };

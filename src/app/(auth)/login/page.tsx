@@ -17,7 +17,32 @@ export default function LoginPage() {
     setError(null);
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) { setError(error.message); setLoading(false); return; }
+
+    if (error) {
+      // Auto-fix unconfirmed accounts (stuck from old signup flow)
+      if (error.message.toLowerCase().includes("email not confirmed")) {
+        const fixRes = await fetch("/api/auth/confirm-and-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        if (fixRes.ok) {
+          // Retry login after confirming
+          const { error: retryError } = await supabase.auth.signInWithPassword({ email, password });
+          if (!retryError) {
+            window.location.href = "/dashboard";
+            return;
+          }
+          setError(retryError.message);
+        } else {
+          setError("Could not confirm account. Please contact support.");
+        }
+      } else {
+        setError(error.message);
+      }
+      setLoading(false);
+      return;
+    }
     window.location.href = "/dashboard";
   };
 

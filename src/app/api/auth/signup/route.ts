@@ -20,20 +20,43 @@ export async function POST(req: NextRequest) {
 
     const serviceClient = createServiceClient();
 
-    // Check if email already exists
+    // Check if user already exists
     const { data: existingUsers } = await serviceClient.auth.admin.listUsers();
-    const alreadyExists = existingUsers?.users?.some(
+    const existingUser = existingUsers?.users?.find(
       (u) => u.email?.toLowerCase() === email.toLowerCase()
     );
-    if (alreadyExists) {
+
+    if (existingUser) {
+      // If they exist but are NOT confirmed (stuck from old flow), fix them:
+      // update password + confirm + sign them in
+      if (!existingUser.email_confirmed_at) {
+        await serviceClient.auth.admin.updateUserById(existingUser.id, {
+          password,
+          email_confirm: true,
+        });
+        // Make sure org row exists
+        const { data: orgRow } = await serviceClient
+          .from("organizations")
+          .select("id")
+          .eq("owner_id", existingUser.id)
+          .single();
+
+        if (!orgRow) {
+          await serviceClient.from("organizations").insert({
+            name: orgName.trim(),
+            owner_id: existingUser.id,
+          });
+        }
+        return NextResponse.json({ success: true, emailConfirmRequired: false });
+      }
+      // Fully confirmed account already exists
       return NextResponse.json(
         { error: "An account with this email already exists. Please sign in." },
         { status: 400 }
       );
     }
 
-    // Create user with email_confirm: true (bypass Supabase's broken SMTP)
-    // We handle email verification ourselves via a magic link sent below.
+    // Create brand-new user — email_confirm: true bypasses broken Supabase SMTP
     const { data: authData, error: signUpError } = await serviceClient.auth.admin.createUser({
       email,
       password,
@@ -54,17 +77,14 @@ export async function POST(req: NextRequest) {
       owner_id: authData.user.id,
     });
 
-    if (orgError) {
-      if (!orgError.message.includes("duplicate")) {
-        await serviceClient.auth.admin.deleteUser(authData.user.id);
-        return NextResponse.json(
-          { error: "Failed to create organization: " + orgError.message },
-          { status: 500 }
-        );
-      }
+    if (orgError && !orgError.message.includes("duplicate")) {
+      await serviceClient.auth.admin.deleteUser(authData.user.id);
+      return NextResponse.json(
+        { error: "Failed to create organization: " + orgError.message },
+        { status: 500 }
+      );
     }
 
-    // Account is ready — no email verification needed (bypassed)
     return NextResponse.json({ success: true, emailConfirmRequired: false });
   } catch (err) {
     console.error("Signup error:", err);
