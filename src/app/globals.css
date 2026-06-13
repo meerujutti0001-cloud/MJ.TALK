@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Font variables ── */
+:root {
+  --font-heading: 'Inter', system-ui, sans-serif;
+  --font-inter: 'Inter', system-ui, sans-serif;
+  /* Syne kept as fallback but headings now use Inter tight */
+  --font-syne: 'Inter', system-ui, sans-serif;
+}
+
+/* Heading style — tight, compressed, professional */
+.heading {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  font-stretch: condensed;
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 160 10% 8%;
+    --card: 0 0% 100%;
+    --card-foreground: 160 10% 8%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 160 10% 8%;
+    --primary: 158 64% 38%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 150 20% 95%;
+    --secondary-foreground: 158 30% 20%;
+    --muted: 150 20% 95%;
+    --muted-foreground: 155 10% 45%;
+    --accent: 150 20% 93%;
+    --accent-foreground: 158 30% 20%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 150 15% 88%;
+    --input: 150 15% 88%;
+    --ring: 158 64% 38%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 160 15% 6%;
+    --foreground: 150 10% 95%;
+    --card: 160 12% 9%;
+    --card-foreground: 150 10% 95%;
+    --popover: 160 12% 9%;
+    --popover-foreground: 150 10% 95%;
+    --primary: 158 64% 42%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 160 10% 15%;
+    --secondary-foreground: 150 10% 90%;
+    --muted: 160 10% 15%;
+    --muted-foreground: 155 8% 55%;
+    --accent: 160 10% 18%;
+    --accent-foreground: 150 10% 90%;
+    --destructive: 0 62.8% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 160 10% 18%;
+    --input: 160 10% 18%;
+    --ring: 158 64% 42%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground; }
+}
+
+/* Scrollbar */
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #d1fae5; border-radius: 2px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #a7f3d0; }
+
+/* Widget pulse */
+@keyframes widget-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+  50% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+}
+.widget-pulse { animation: widget-pulse 2s ease-in-out infinite; }
+
+/* Typing dots */
+@keyframes typing-dot {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-8px); }
+}
+.typing-dot:nth-child(1) { animation: typing-dot 1.2s ease-in-out infinite; }
+.typing-dot:nth-child(2) { animation: typing-dot 1.2s ease-in-out 0.2s infinite; }
+.typing-dot:nth-child(3) { animation: typing-dot 1.2s ease-in-out 0.4s infinite; }
