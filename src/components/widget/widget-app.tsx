@@ -223,6 +223,9 @@ export function WidgetApp({ config }: WidgetAppProps) {
     setError(null);
     abortRef.current = new AbortController();
 
+    // Create the AI message placeholder before fetching
+    const aiMsgId = `ai_${Date.now()}`;
+
     try {
       const res = await fetch(`${api}/api/chat`, {
         method: "POST",
@@ -230,31 +233,56 @@ export function WidgetApp({ config }: WidgetAppProps) {
         body: JSON.stringify({ messages: apiMessages, chatbotId: config.id, conversationId: convId, sessionId }),
         signal: abortRef.current.signal,
       });
-      if (!res.ok) throw new Error("AI response failed");
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error ?? `HTTP ${res.status}`);
+      }
 
       const reader = res.body?.getReader();
       if (!reader) throw new Error("No response body");
 
       const decoder = new TextDecoder();
-      let aiText = "";
-      const aiMsgId = `ai_${Date.now()}`;
+
+      // Add the AI message bubble now
       setMessages((prev) => [...prev, { id: aiMsgId, role: "assistant", content: "", timestamp: new Date() }]);
       setIsTyping(false);
 
+      // Read stream — use a ref-based accumulator to avoid stale closure
+      let accumulated = "";
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        aiText += decoder.decode(value, { stream: true });
-        setMessages((prev) => prev.map((m) => m.id === aiMsgId ? { ...m, content: aiText } : m));
+
+        const chunk = decoder.decode(value, { stream: true });
+        accumulated += chunk;
+
+        // Update the specific message by ID using functional update
+        const snapshot = accumulated;
+        setMessages((prev) =>
+          prev.map((m) => m.id === aiMsgId ? { ...m, content: snapshot } : m)
+        );
+      }
+
+      // Final flush of any remaining decoder bytes
+      const tail = decoder.decode();
+      if (tail) {
+        accumulated += tail;
+        setMessages((prev) =>
+          prev.map((m) => m.id === aiMsgId ? { ...m, content: accumulated } : m)
+        );
       }
 
       const keyword = config.escalation_keyword ?? "ESCALATE";
-      if (aiText.toUpperCase().includes(keyword.toUpperCase())) setIsEscalated(true);
+      if (accumulated.toUpperCase().includes(keyword.toUpperCase())) setIsEscalated(true);
       if (soundEnabled) playPing();
+
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") return;
       setIsTyping(false);
-      setError("Sorry, something went wrong. Please try again.");
+      // Remove the empty AI bubble if it was added
+      setMessages((prev) => prev.filter((m) => m.id !== aiMsgId || m.content !== ""));
+      setError(`Sorry, something went wrong: ${err instanceof Error ? err.message : "Please try again."}`);
     } finally {
       setIsTyping(false);
     }
