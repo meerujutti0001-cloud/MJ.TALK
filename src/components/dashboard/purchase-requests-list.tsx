@@ -123,14 +123,6 @@ export function PurchaseRequestsList({ initialRequests }: PurchaseRequestsListPr
     }
   }, [requests]);
 
-  const stats = useMemo(() => ({
-    total: requests.length,
-    pending: requests.filter(r => r.status === "pending_review").length,
-    approved: requests.filter(r => r.status === "approved" || r.status === "completed").length,
-    premium: requests.filter(r => r.plan_type === "premium").length,
-    enterprise: requests.filter(r => r.plan_type === "enterprise").length,
-  }), [requests]);
-
   // Toggle expand with useCallback
   const toggleExpand = useCallback((id: string) => {
     setExpandedId(prev => prev === id ? null : id);

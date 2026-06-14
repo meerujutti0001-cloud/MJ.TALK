@@ -1,11 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState, lazy, Suspense } from "react";
+import { useState } from "react";
 import { Menu, X, ArrowRight, Check, Star, Bot, Users } from "lucide-react";
-
-// Lazy load the widget for better initial page load
-const LandingWidget = lazy(() => import("@/components/landing/landing-widget").then(mod => ({ default: mod.LandingWidget })));
+import { LandingWidget } from "@/components/landing/landing-widget";
 
 /*
   CSS variables from HTML (exact copy):
@@ -901,10 +899,8 @@ export default function LandingPage() {
       <Pricing />
       <CTABanner />
       <Footer />
-      {/* MJ.TALK platform support bot — lazy loaded for better performance */}
-      <Suspense fallback={null}>
-        <LandingWidget />
-      </Suspense>
+      {/* MJ.TALK platform support bot — answers questions about the product */}
+      <LandingWidget />
     </div>
   );
 }

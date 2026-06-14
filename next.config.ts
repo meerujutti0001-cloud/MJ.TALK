@@ -1,9 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Enable SWC minification for better performance
-  swcMinify: true,
-  
   // Optimize images
   images: {
     remotePatterns: [
@@ -20,14 +17,8 @@ const nextConfig: NextConfig = {
   // Enable compression
   compress: true,
   
-  // Optimize production builds
-  productionBrowserSourceMaps: false,
-  
   // React strict mode for better performance checks
   reactStrictMode: true,
-  
-  // Optimize CSS
-  optimizeCss: true,
   
   async headers() {
     return [
