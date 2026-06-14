@@ -592,8 +592,8 @@ const plans = [
     price: "$29",
     priceNote: "/ month",
     desc: "For growing teams that need scale, speed, and AI.",
-    cta: "Start 14-day free trial",
-    ctaHref: "/signup",
+    cta: "Purchase Premium — $29/mo",
+    ctaHref: "/purchase/premium",
     ctaStyle: "solid",
     features: [
       "Unlimited chats",
@@ -607,11 +607,11 @@ const plans = [
   {
     name: "Enterprise",
     badge: null,
-    price: "$10",
-    priceNote: "/ month",
+    price: "Custom",
+    priceNote: "tailored pricing",
     desc: "Custom infrastructure for high-volume teams.",
-    cta: "Contact sales",
-    ctaHref: "/contact",
+    cta: "Request Enterprise →",
+    ctaHref: "/purchase/enterprise",
     ctaStyle: "outline",
     features: [
       "Everything in Growth",

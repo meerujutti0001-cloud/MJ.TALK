@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Send, CheckCircle2, Mail, MessageSquare,
   BookOpen, Zap, AlertCircle, ChevronDown,
-  ArrowLeft, Loader2,
+  ArrowLeft, Loader2, CreditCard, Building2,
+  ShieldCheck, Globe, Users, Star, ChevronRight,
+  Check, Phone, Lock,
 } from "lucide-react";
 
 const CATEGORIES = [
