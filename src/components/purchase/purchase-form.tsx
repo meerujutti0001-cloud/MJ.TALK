@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { ArrowLeft, ArrowRight, Check, Building2, User, MapPin, CreditCard, FileText } from "lucide-react";
 
 interface PurchaseFormProps {
@@ -21,29 +21,33 @@ export function PurchaseForm({ plan, onSubmit, onBack }: PurchaseFormProps) {
     agreedToTerms: false, agreedToPrivacy: false,
   });
 
-  const totalSteps = plan === "enterprise" ? 4 : 3;
+  const totalSteps = useMemo(() => plan === "enterprise" ? 4 : 3, [plan]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     if (type === "checkbox") {
       setFormData(prev => ({ ...prev, [name]: (e.target as HTMLInputElement).checked }));
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
-  };
+  }, []);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (step < totalSteps) setStep(step + 1);
-  };
+  }, [step, totalSteps]);
 
-  const handleSubmit = async () => {
+  const handleBack = useCallback(() => {
+    if (step > 1) setStep(step - 1);
+  }, [step]);
+
+  const handleSubmit = useCallback(async () => {
     setLoading(true);
     try {
       await onSubmit({ plan, ...formData });
     } finally {
       setLoading(false);
     }
-  };
+  }, [plan, formData, onSubmit]);
 
   const inputStyle = {
     width: "100%", padding: "0.75rem", border: "1px solid #d4f4ee",
@@ -300,7 +304,7 @@ export function PurchaseForm({ plan, onSubmit, onBack }: PurchaseFormProps) {
       <div style={{ display: "flex", gap: "1rem", marginTop: "2rem", paddingTop: "2rem", borderTop: "1px solid #d4f4ee" }}>
         {step > 1 && (
           <button
-            onClick={() => setStep(step - 1)}
+            onClick={handleBack}
             style={{
               padding: "0.75rem 1.5rem", borderRadius: "8px",
               background: "transparent", border: "1px solid #d4f4ee",

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   LayoutDashboard, Bot, MessageSquare, BarChart2, Users,
-  Bell, Settings, LogOut, Menu, X, LifeBuoy,
+  Bell, Settings, LogOut, Menu, X, LifeBuoy, ShoppingCart,
 } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -19,13 +19,14 @@ interface DashboardShellProps {
 }
 
 const navItems = [
-  { href: "/dashboard",               label: "Overview",       icon: LayoutDashboard, exact: true },
-  { href: "/dashboard/chatbots",      label: "Chatbots",       icon: Bot },
-  { href: "/dashboard/conversations", label: "Conversations",  icon: MessageSquare },
-  { href: "/dashboard/analytics",     label: "Analytics",      icon: BarChart2 },
-  { href: "/dashboard/team",          label: "Team",           icon: Users },
-  { href: "/dashboard/notifications", label: "Notifications",  icon: Bell, badge: true },
-  { href: "/dashboard/settings",      label: "Settings",       icon: Settings },
+  { href: "/dashboard",                     label: "Overview",           icon: LayoutDashboard, exact: true },
+  { href: "/dashboard/chatbots",            label: "Chatbots",           icon: Bot },
+  { href: "/dashboard/conversations",       label: "Conversations",      icon: MessageSquare },
+  { href: "/dashboard/analytics",           label: "Analytics",          icon: BarChart2 },
+  { href: "/dashboard/purchase-requests",   label: "Purchase Requests",  icon: ShoppingCart },
+  { href: "/dashboard/team",                label: "Team",               icon: Users },
+  { href: "/dashboard/notifications",       label: "Notifications",      icon: Bell, badge: true },
+  { href: "/dashboard/settings",            label: "Settings",           icon: Settings },
 ];
 
 /* ── colour tokens (same as landing page) ── */
