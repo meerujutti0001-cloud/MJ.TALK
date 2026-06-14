@@ -3,16 +3,14 @@ import { requireAuth } from "@/lib/auth";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
+import { FloatingWidget } from "@/components/floating-widget";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const user = await requireAuth();
-
-  // Use service client — bypasses RLS entirely so org lookup always works
   const serviceClient = createServiceClient();
 
   let org: { id: string; name: string } | null = null;
 
-  // 1. Check if user owns an org
   const { data: ownedOrg } = await serviceClient
     .from("organizations")
     .select("id, name")
@@ -24,7 +22,6 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   if (ownedOrg) {
     org = ownedOrg;
   } else {
-    // 2. Check team membership (accepted invites)
     const { data: membership } = await serviceClient
       .from("team_members")
       .select("org_id")
@@ -42,21 +39,30 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     }
   }
 
-  if (!org) {
-    redirect("/dashboard/setup");
-  }
+  if (!org) redirect("/dashboard/setup");
 
-  // Notification count (anon client, scoped by RLS to this user's orgs)
+  // Fetch the org's first active chatbot to show as floating widget
+  const { data: orgChatbot } = await serviceClient
+    .from("chatbots")
+    .select("id")
+    .eq("org_id", org.id)
+    .eq("status", "active")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
   const supabase = await createClient();
   const { count: unreadCount } = await supabase
     .from("notifications")
     .select("*", { count: "exact", head: true })
-    .eq("org_id", org!.id)
+    .eq("org_id", org.id)
     .eq("read", false);
 
   return (
-    <DashboardShell user={user} org={org!} unreadCount={unreadCount ?? 0}>
+    <DashboardShell user={user} org={org} unreadCount={unreadCount ?? 0}>
       {children}
+      {/* User's own org chatbot — only visible inside the dashboard */}
+      {orgChatbot?.id && <FloatingWidget chatbotId={orgChatbot.id} />}
     </DashboardShell>
   );
 }
