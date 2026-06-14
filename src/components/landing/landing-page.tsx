@@ -56,17 +56,15 @@ function Navbar() {
           fontSize: "0.875rem", fontWeight: 500, color: "#5a7878",
           textDecoration: "none",
         }}>Sign In</Link>
-        <a
-          href={`mailto:${SUPPORT_EMAIL}?subject=Support%20Enquiry`}
-          style={{
-            fontSize: "0.875rem", fontWeight: 500, color: "#0d8585",
-            textDecoration: "none", border: "1.5px solid #1dbfa0",
-            padding: "0.4rem 1rem", borderRadius: "6px",
-            transition: "background 0.2s, color 0.2s",
-          }}
+        <Link href="/contact" style={{
+          fontSize: "0.875rem", fontWeight: 500, color: "#0d8585",
+          textDecoration: "none", border: "1.5px solid #1dbfa0",
+          padding: "0.4rem 1rem", borderRadius: "6px",
+          transition: "background 0.2s, color 0.2s",
+        }}
           onMouseEnter={e => { e.currentTarget.style.background = "#edfaf7"; }}
           onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-        >Contact Support</a>
+        >Contact Support</Link>
         <Link href="/signup" style={{
           background: "#0d8585", color: "#fff",
           padding: "0.5rem 1.25rem", borderRadius: "6px",
@@ -96,13 +94,9 @@ function Navbar() {
               fontSize: "0.9rem", fontWeight: 500, color: "#5a7878", textDecoration: "none",
             }}>{l}</a>
           ))}
-          <a
-            href={`mailto:${SUPPORT_EMAIL}?subject=Support%20Enquiry`}
-            onClick={() => setOpen(false)}
-            style={{
-              fontSize: "0.9rem", fontWeight: 600, color: "#0d8585", textDecoration: "none",
-            }}
-          >Contact Support</a>
+          <Link href="/contact" onClick={() => setOpen(false)} style={{
+            fontSize: "0.9rem", fontWeight: 600, color: "#0d8585", textDecoration: "none",
+          }}>Contact Support</Link>
           <Link href="/signup" onClick={() => setOpen(false)} style={{
             background: "#0d8585", color: "#fff", padding: "0.6rem 1rem",
             borderRadius: "6px", fontSize: "0.875rem", fontWeight: 600,
@@ -711,7 +705,7 @@ function Footer() {
                   <li key={l}>
                     {l === "Contact Support" ? (
                       <a
-                        href={`mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@mjtalk.com"}?subject=Support%20Enquiry`}
+                        href="/contact"
                         style={{ fontSize: "0.83rem", color: "rgba(255,255,255,0.6)", textDecoration: "none", transition: "color 0.2s" }}
                         onMouseEnter={e => (e.currentTarget.style.color = "#4dd4b8")}
                         onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.6)")}
