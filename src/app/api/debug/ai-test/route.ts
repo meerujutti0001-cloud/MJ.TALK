@@ -2,12 +2,10 @@ import { NextResponse } from "next/server";
 
 export async function GET() {
   const key = process.env.OPENROUTER_API_KEY;
-
   if (!key) {
-    return NextResponse.json({ error: "OPENROUTER_API_KEY is NOT set on this server" }, { status: 500 });
+    return NextResponse.json({ error: "OPENROUTER_API_KEY not set" }, { status: 500 });
   }
 
-  // Test OpenRouter with a minimal non-streaming call
   try {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -20,22 +18,25 @@ export async function GET() {
       body: JSON.stringify({
         model: "openai/gpt-4o-mini",
         messages: [{ role: "user", content: "Reply with exactly the word: WORKING" }],
-        max_tokens: 10,
+        max_tokens: 20,
         stream: false,
       }),
     });
 
-    const data = await res.json();
-    const reply = data.choices?.[0]?.message?.content ?? null;
+    const text = await res.text(); // read raw text first
+    let data = null;
+    try { data = JSON.parse(text); } catch { /* not json */ }
+
+    const reply = data?.choices?.[0]?.message?.content ?? null;
 
     return NextResponse.json({
-      key_set: true,
-      key_prefix: key.slice(0, 12) + "...",
-      openrouter_status: res.status,
+      key_prefix: key.slice(0, 16) + "...",
+      http_status: res.status,
+      raw_response: text.slice(0, 1000), // first 1000 chars
       reply,
-      raw: data,
+      error: data?.error ?? null,
     });
   } catch (e) {
-    return NextResponse.json({ key_set: true, error: String(e) }, { status: 500 });
+    return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }
