@@ -684,7 +684,7 @@ export function OnboardingFlow({ orgId, orgName }: OnboardingFlowProps) {
                 const Icon = p.icon;
                 const selected = product === p.id;
                 return (
-                  <button key={p.id} onClick={() => { setProduct(p.id); setStep("profile"); }}
+                  <button key={p.id} onClick={() => { setProduct(p.id); setStep(p.id === "live_chat" ? "profile" : "chatbot"); }}
                     style={{
                       background: selected ? "rgba(13,133,133,0.15)" : "rgba(255,255,255,0.04)",
                       border: selected ? "1.5px solid #0d8585" : "1.5px solid rgba(255,255,255,0.1)",
@@ -786,7 +786,7 @@ export function OnboardingFlow({ orgId, orgName }: OnboardingFlowProps) {
         {/* ══════ STEP 3 — PER-PRODUCT SETUP ══════ */}
         {step === "chatbot" && (
           <div>
-            <button onClick={() => setStep("profile")} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "1.5rem", fontSize: "0.85rem" }}>
+            <button onClick={() => setStep(product === "live_chat" ? "profile" : "product")} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "1.5rem", fontSize: "0.85rem" }}>
               <ChevronLeft size={16} /> Back
             </button>
             <h1 style={{ fontSize: "clamp(1.4rem,3vw,1.9rem)", fontWeight: 800, color: "#fff", marginBottom: "0.5rem", letterSpacing: "-0.03em" }}>
