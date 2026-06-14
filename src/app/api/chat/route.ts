@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -10,10 +10,52 @@ const CORS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
+// Models to try in order (first free/reliable ones)
+const MODELS = [
+  "google/gemini-2.0-flash-001",
+  "google/gemini-flash-1.5",
+  "meta-llama/llama-3.1-8b-instruct:free",
+  "openai/gpt-4o-mini",
+];
+
+async function callOpenRouter(
+  key: string,
+  model: string,
+  apiMessages: { role: string; content: string }[],
+  appUrl: string
+): Promise<{ text: string; status: number; raw: string }> {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${key}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": appUrl,
+      "X-Title": "MJ.TALK Support",
+    },
+    body: JSON.stringify({
+      model,
+      messages: apiMessages,
+      max_tokens: 1024,
+      stream: false,
+      temperature: 0.7,
+    }),
+  });
+
+  const raw = await res.text();
+  let text = "";
+  try {
+    const data = JSON.parse(raw);
+    text = data.choices?.[0]?.message?.content?.trim() ?? "";
+  } catch { /* parse failed */ }
+
+  return { text, status: res.status, raw: raw.slice(0, 500) };
+}
+
 export async function POST(req: NextRequest) {
-  if (!process.env.OPENROUTER_API_KEY) {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) {
     return NextResponse.json(
-      { error: "OPENROUTER_API_KEY not set on server" },
+      { error: "OPENROUTER_API_KEY not configured on server" },
       { status: 500, headers: CORS }
     );
   }
@@ -41,11 +83,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Chatbot inactive" }, { status: 403, headers: CORS });
     }
 
-    // Build messages for OpenRouter
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://mj-talk.vercel.app";
+
     const apiMessages = [
       {
         role: "system",
-        content: chatbot.system_prompt || "You are a helpful customer support assistant.",
+        content: chatbot.system_prompt || "You are a helpful customer support assistant. Be concise and friendly.",
       },
       ...messages.map((m: { role: string; content: string }) => ({
         role: m.role as "user" | "assistant",
@@ -53,85 +96,74 @@ export async function POST(req: NextRequest) {
       })),
     ];
 
-    // Call OpenRouter — NON-streaming for reliability
-    const orRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL ?? "https://mj-talk.vercel.app",
-        "X-Title": "MJ.TALK Support",
-      },
-      body: JSON.stringify({
-        model: "openai/gpt-4o-mini",
-        messages: apiMessages,
-        max_tokens: 1024,
-        stream: false,  // non-streaming — most reliable across all environments
-      }),
-    });
-
-    if (!orRes.ok) {
-      const errText = await orRes.text();
-      console.error("OpenRouter error:", orRes.status, errText);
-      return NextResponse.json(
-        { error: "AI service error", detail: errText },
-        { status: 502, headers: CORS }
-      );
+    // Try each model until one returns a non-empty response
+    let replyText = "";
+    let lastRaw = "";
+    for (const model of MODELS) {
+      try {
+        const result = await callOpenRouter(key, model, apiMessages, appUrl);
+        lastRaw = result.raw;
+        if (result.text) {
+          replyText = result.text;
+          break;
+        }
+        console.warn(`Model ${model} returned empty. Status: ${result.status}. Raw: ${result.raw.slice(0, 200)}`);
+      } catch (e) {
+        console.warn(`Model ${model} threw:`, e);
+      }
     }
 
-    const data = await orRes.json();
-    const replyText: string = data.choices?.[0]?.message?.content ?? "";
-
     if (!replyText) {
-      console.error("Empty reply from OpenRouter:", JSON.stringify(data));
-      return NextResponse.json(
-        { error: "Empty response from AI" },
-        { status: 502, headers: CORS }
-      );
+      console.error("All models returned empty. Last raw:", lastRaw);
+      // Fallback so user always gets a response
+      replyText = "I'm having trouble connecting right now. Please try again in a moment.";
     }
 
     // Persist assistant message
     if (conversationId) {
-      await supabase.from("messages").insert({
-        conversation_id: conversationId,
-        role: "assistant",
-        content: replyText,
-      });
+      try {
+        await supabase.from("messages").insert({
+          conversation_id: conversationId,
+          role: "assistant",
+          content: replyText,
+        });
+      } catch (e) { console.error("Persist error:", e); }
 
       // Escalation check
       const keyword = (chatbot.escalation_keyword ?? "ESCALATE").toUpperCase();
       if (replyText.toUpperCase().includes(keyword)) {
-        await supabase
-          .from("conversations")
-          .update({ status: "escalated" })
-          .eq("id", conversationId);
+        try {
+          await supabase
+            .from("conversations")
+            .update({ status: "escalated" })
+            .eq("id", conversationId);
 
-        const { data: conv } = await supabase
-          .from("conversations")
-          .select("chatbot_id")
-          .eq("id", conversationId)
-          .single();
-
-        if (conv) {
-          const { data: bot } = await supabase
-            .from("chatbots")
-            .select("org_id")
-            .eq("id", conv.chatbot_id)
+          const { data: conv } = await supabase
+            .from("conversations")
+            .select("chatbot_id")
+            .eq("id", conversationId)
             .single();
 
-          if (bot) {
-            await supabase.from("notifications").insert({
-              org_id: bot.org_id,
-              conversation_id: conversationId,
-              type: "escalated",
-              message: "A conversation has been escalated and needs human attention.",
-            });
+          if (conv) {
+            const { data: bot } = await supabase
+              .from("chatbots")
+              .select("org_id")
+              .eq("id", conv.chatbot_id)
+              .single();
+
+            if (bot) {
+              await supabase.from("notifications").insert({
+                org_id: bot.org_id,
+                conversation_id: conversationId,
+                type: "escalated",
+                message: "A conversation has been escalated and needs human attention.",
+              });
+            }
           }
-        }
+        } catch (e) { console.error("Escalation error:", e); }
       }
     }
 
-    // Return plain text — widget reads it all at once
     const headers = new Headers(CORS as Record<string, string>);
     headers.set("Content-Type", "text/plain; charset=utf-8");
     headers.set("Cache-Control", "no-cache, no-store");
@@ -139,7 +171,7 @@ export async function POST(req: NextRequest) {
     return new Response(replyText, { status: 200, headers });
 
   } catch (error) {
-    console.error("Chat API error:", error);
+    console.error("Chat API fatal error:", error);
     return NextResponse.json(
       { error: "Internal server error", detail: error instanceof Error ? error.message : String(error) },
       { status: 500, headers: CORS }

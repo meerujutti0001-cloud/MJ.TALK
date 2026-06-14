@@ -1,42 +1,49 @@
 import { NextResponse } from "next/server";
 
+const MODELS = [
+  "google/gemini-2.0-flash-001",
+  "google/gemini-flash-1.5",
+  "meta-llama/llama-3.1-8b-instruct:free",
+  "openai/gpt-4o-mini",
+];
+
 export async function GET() {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) {
-    return NextResponse.json({ error: "OPENROUTER_API_KEY not set" }, { status: 500 });
+    return NextResponse.json({ error: "OPENROUTER_API_KEY not set on Vercel" }, { status: 500 });
   }
 
-  try {
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${key}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://mj-talk.vercel.app",
-        "X-Title": "MJ.TALK Test",
-      },
-      body: JSON.stringify({
-        model: "openai/gpt-4o-mini",
-        messages: [{ role: "user", content: "Reply with exactly the word: WORKING" }],
-        max_tokens: 20,
-        stream: false,
-      }),
-    });
+  const results: Record<string, string> = {};
 
-    const text = await res.text(); // read raw text first
-    let data = null;
-    try { data = JSON.parse(text); } catch { /* not json */ }
-
-    const reply = data?.choices?.[0]?.message?.content ?? null;
-
-    return NextResponse.json({
-      key_prefix: key.slice(0, 16) + "...",
-      http_status: res.status,
-      raw_response: text.slice(0, 1000), // first 1000 chars
-      reply,
-      error: data?.error ?? null,
-    });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+  for (const model of MODELS) {
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${key}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://mj-talk.vercel.app",
+          "X-Title": "MJ.TALK Test",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "user", content: "Say only: OK" }],
+          max_tokens: 10,
+          stream: false,
+        }),
+      });
+      const text = await res.text();
+      let reply = "";
+      try { reply = JSON.parse(text)?.choices?.[0]?.message?.content ?? ""; } catch { reply = text.slice(0, 100); }
+      results[model] = reply || `(empty) status=${res.status}`;
+      if (reply) break; // found a working model
+    } catch (e) {
+      results[model] = `ERROR: ${e}`;
+    }
   }
+
+  return NextResponse.json({
+    key_prefix: key.slice(0, 16) + "...",
+    results,
+  });
 }
