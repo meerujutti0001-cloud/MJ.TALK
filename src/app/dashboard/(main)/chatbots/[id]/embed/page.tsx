@@ -6,7 +6,8 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { EmbedCodePanel } from "@/components/dashboard/embed-code-panel";
 
-export default async function EmbedPage({ params }: { params: { id: string } }) {
+export default async function EmbedPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const user = await requireAuth();
   const orgId = await getOrgId(user.id);
   if (!orgId) notFound();
@@ -15,7 +16,7 @@ export default async function EmbedPage({ params }: { params: { id: string } }) 
   const { data: chatbot } = await supabase
     .from("chatbots")
     .select("id, name, widget_color, status")
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("org_id", orgId)
     .maybeSingle();
 

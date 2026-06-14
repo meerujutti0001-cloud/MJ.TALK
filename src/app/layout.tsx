@@ -38,26 +38,30 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-
-  // Priority: explicit env var → first active chatbot in DB → nothing
-  let widgetChatbotId = process.env.NEXT_PUBLIC_DEMO_CHATBOT_ID?.trim() || null;
+  // Priority: explicit env var → first active chatbot in DB → nothing (widget hidden)
+  let widgetChatbotId: string | null = process.env.NEXT_PUBLIC_DEMO_CHATBOT_ID?.trim() || null;
 
   if (!widgetChatbotId) {
     try {
       const supabase = createServiceClient();
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("chatbots")
         .select("id")
         .eq("status", "active")
         .order("created_at", { ascending: true })
         .limit(1)
-        .single();
-      widgetChatbotId = data?.id ?? null;
+        .maybeSingle();           // maybeSingle → returns null instead of error when no rows
+
+      if (!error && data?.id) {
+        widgetChatbotId = data.id;
+      }
     } catch {
-      // DB not reachable — skip widget
+      // DB not reachable — skip widget silently
     }
   }
+
+  // Safety: never render the widget with a blank/falsy ID
+  const showWidget = !!widgetChatbotId && widgetChatbotId.length > 10;
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -69,9 +73,9 @@ export default async function RootLayout({
         <SSRPolyfill />
         {children}
         <Toaster />
-        {/* Floating AI assistant — shown on every page */}
-        {widgetChatbotId && (
-          <FloatingWidget chatbotId={widgetChatbotId} appUrl={appUrl} />
+        {/* Floating AI assistant — shown on every page when a chatbot exists */}
+        {showWidget && (
+          <FloatingWidget chatbotId={widgetChatbotId!} />
         )}
       </body>
     </html>

@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { ChatbotForm } from "@/components/dashboard/chatbot-form";
 import type { Chatbot } from "@/types";
 
-export default async function EditChatbotPage({ params }: { params: { id: string } }) {
+export default async function EditChatbotPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const user = await requireAuth();
   const orgId = await getOrgId(user.id);
   if (!orgId) notFound();
@@ -17,7 +18,7 @@ export default async function EditChatbotPage({ params }: { params: { id: string
   const { data: chatbot } = await supabase
     .from("chatbots")
     .select("*")
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("org_id", orgId)
     .maybeSingle();
 
