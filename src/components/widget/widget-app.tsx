@@ -207,6 +207,7 @@ export function WidgetApp({ config }: WidgetAppProps) {
   const sendMessage = async (text: string, convId: string) => {
     const api = getApiBase();
 
+    // Persist user message
     await fetch(`${api}/api/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -223,66 +224,56 @@ export function WidgetApp({ config }: WidgetAppProps) {
     setError(null);
     abortRef.current = new AbortController();
 
-    // Create the AI message placeholder before fetching
-    const aiMsgId = `ai_${Date.now()}`;
-
     try {
       const res = await fetch(`${api}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: apiMessages, chatbotId: config.id, conversationId: convId, sessionId }),
+        body: JSON.stringify({
+          messages: apiMessages,
+          chatbotId: config.id,
+          conversationId: convId,
+          sessionId,
+        }),
         signal: abortRef.current.signal,
       });
 
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error ?? `HTTP ${res.status}`);
+        let errMsg = `Error ${res.status}`;
+        try { const j = await res.json(); errMsg = j.error ?? errMsg; } catch { /* ignore */ }
+        throw new Error(errMsg);
       }
 
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("No response body");
+      // Read the full plain-text response at once
+      const replyText = await res.text();
 
-      const decoder = new TextDecoder();
+      if (!replyText.trim()) {
+        throw new Error("Empty response from AI");
+      }
 
-      // Add the AI message bubble now
-      setMessages((prev) => [...prev, { id: aiMsgId, role: "assistant", content: "", timestamp: new Date() }]);
+      // Add AI message to chat
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `ai_${Date.now()}`,
+          role: "assistant" as const,
+          content: replyText,
+          timestamp: new Date(),
+        },
+      ]);
       setIsTyping(false);
 
-      // Read stream — use a ref-based accumulator to avoid stale closure
-      let accumulated = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        accumulated += chunk;
-
-        // Update the specific message by ID using functional update
-        const snapshot = accumulated;
-        setMessages((prev) =>
-          prev.map((m) => m.id === aiMsgId ? { ...m, content: snapshot } : m)
-        );
-      }
-
-      // Final flush of any remaining decoder bytes
-      const tail = decoder.decode();
-      if (tail) {
-        accumulated += tail;
-        setMessages((prev) =>
-          prev.map((m) => m.id === aiMsgId ? { ...m, content: accumulated } : m)
-        );
-      }
-
+      // Check escalation
       const keyword = config.escalation_keyword ?? "ESCALATE";
-      if (accumulated.toUpperCase().includes(keyword.toUpperCase())) setIsEscalated(true);
+      if (replyText.toUpperCase().includes(keyword.toUpperCase())) {
+        setIsEscalated(true);
+      }
+
       if (soundEnabled) playPing();
 
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") return;
       setIsTyping(false);
-      // Remove the empty AI bubble if it was added
-      setMessages((prev) => prev.filter((m) => m.id !== aiMsgId || m.content !== ""));
-      setError(`Sorry, something went wrong: ${err instanceof Error ? err.message : "Please try again."}`);
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
       setIsTyping(false);
     }
