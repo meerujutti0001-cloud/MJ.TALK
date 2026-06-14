@@ -19,7 +19,7 @@ interface OnboardingFlowProps {
 }
 
 type Product = "live_chat" | "ticketing" | "knowledge_base" | "pages";
-type Step = "product" | "chatbot" | "install" | "done";
+type Step = "product" | "profile" | "chatbot" | "install" | "done";
 
 const PRODUCTS = [
   {
@@ -93,7 +93,7 @@ Be friendly, on-brand, and solution-focused.`,
 
 /* ─── step indicator ─── */
 function StepDots({ step }: { step: Step }) {
-  const steps: Step[] = ["product", "chatbot", "install"];
+  const steps: Step[] = ["product", "profile", "chatbot", "install"];
   const idx = steps.indexOf(step);
   return (
     <div className="flex items-center gap-2 justify-center mb-8">
@@ -520,6 +520,12 @@ export function OnboardingFlow({ orgId, orgName }: OnboardingFlowProps) {
   const [step, setStep] = useState<Step>("product");
   const [product, setProduct] = useState<Product>("live_chat");
 
+  /* Profile step */
+  const [fullName, setFullName] = useState("");
+  const [website, setWebsite] = useState("");
+  const [teamSize, setTeamSize] = useState("1");
+  const [industry, setIndustry] = useState("");
+
   /* Shared chatbot fields */
   const [botName, setBotName] = useState(orgName + " Support");
   const [botColor, setBotColor] = useState("#0d8585");
@@ -593,6 +599,13 @@ export function OnboardingFlow({ orgId, orgName }: OnboardingFlowProps) {
     try {
       const supabase = createClient();
 
+      let hostname: string | null = null;
+      if (website) {
+        try {
+          hostname = new URL(website.startsWith("http") ? website : `https://${website}`).hostname;
+        } catch { /* ignore bad URLs */ }
+      }
+
       const { data, error: err } = await supabase
         .from("chatbots")
         .insert({
@@ -604,7 +617,7 @@ export function OnboardingFlow({ orgId, orgName }: OnboardingFlowProps) {
           widget_color: botColor,
           pre_chat_form_enabled: preChatForm,
           escalation_keyword: product === "ticketing" ? escalationKeyword : "ESCALATE",
-          allowed_domains: null,
+          allowed_domains: hostname ? [hostname] : null,
         })
         .select("id")
         .single();
@@ -671,7 +684,7 @@ export function OnboardingFlow({ orgId, orgName }: OnboardingFlowProps) {
                 const Icon = p.icon;
                 const selected = product === p.id;
                 return (
-                  <button key={p.id} onClick={() => { setProduct(p.id); setStep("chatbot"); }}
+                  <button key={p.id} onClick={() => { setProduct(p.id); setStep("profile"); }}
                     style={{
                       background: selected ? "rgba(13,133,133,0.15)" : "rgba(255,255,255,0.04)",
                       border: selected ? "1.5px solid #0d8585" : "1.5px solid rgba(255,255,255,0.1)",
@@ -706,10 +719,76 @@ export function OnboardingFlow({ orgId, orgName }: OnboardingFlowProps) {
           </div>
         )}
 
-        {/* ══════ STEP 2 — PER-PRODUCT SETUP ══════ */}
-        {step === "chatbot" && (
+        {/* ══════ STEP 2 — PROFILE ══════ */}
+        {step === "profile" && (
           <div>
             <button onClick={() => setStep("product")} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "1.5rem", fontSize: "0.85rem" }}>
+              <ChevronLeft size={16} /> Back
+            </button>
+            <h1 style={{ fontSize: "clamp(1.4rem,3vw,1.9rem)", fontWeight: 800, color: "#fff", marginBottom: "0.5rem", letterSpacing: "-0.03em" }}>
+              Tell us about yourself
+            </h1>
+            <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "0.875rem", marginBottom: "2rem" }}>
+              Help us personalize your experience. All fields are optional.
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div>
+                <label style={labelStyle}>Your Full Name</label>
+                <input type="text" value={fullName} onChange={e => setFullName(e.target.value)}
+                  placeholder="Jane Smith" style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = "#0d8585"}
+                  onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.12)"}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Your Website URL</label>
+                <input type="text" value={website} onChange={e => setWebsite(e.target.value)}
+                  placeholder="https://yoursite.com" style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = "#0d8585"}
+                  onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.12)"}
+                />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                <div>
+                  <label style={labelStyle}>Team Size</label>
+                  <select value={teamSize} onChange={e => setTeamSize(e.target.value)}
+                    style={{ ...inputStyle, cursor: "pointer" }}>
+                    <option value="1" style={{ background: "#1a1a2e" }}>Just me</option>
+                    <option value="2-5" style={{ background: "#1a1a2e" }}>2–5 people</option>
+                    <option value="6-20" style={{ background: "#1a1a2e" }}>6–20 people</option>
+                    <option value="21-100" style={{ background: "#1a1a2e" }}>21–100 people</option>
+                    <option value="100+" style={{ background: "#1a1a2e" }}>100+ people</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Industry</label>
+                  <select value={industry} onChange={e => setIndustry(e.target.value)}
+                    style={{ ...inputStyle, cursor: "pointer" }}>
+                    <option value="" style={{ background: "#1a1a2e" }}>Select industry</option>
+                    {["E-commerce", "SaaS / Software", "Healthcare", "Education", "Finance", "Agency", "Real Estate", "Other"].map(i => (
+                      <option key={i} value={i} style={{ background: "#1a1a2e" }}>{i}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <button onClick={() => setStep("chatbot")}
+              style={{ width: "100%", padding: "0.9rem", marginTop: "2rem", background: "linear-gradient(135deg,#0d8585,#14a085)", border: "none", borderRadius: "10px", color: "#fff", fontWeight: 700, fontSize: "1rem", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}
+              onMouseEnter={e => e.currentTarget.style.opacity = "0.9"}
+              onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+            >
+              Continue <ArrowRight size={18} />
+            </button>
+            <p style={{ textAlign: "center", marginTop: "1rem", fontSize: "0.8rem", color: "rgba(255,255,255,0.25)" }}>This info is only used to set up your account</p>
+          </div>
+        )}
+
+        {/* ══════ STEP 3 — PER-PRODUCT SETUP ══════ */}
+        {step === "chatbot" && (
+          <div>
+            <button onClick={() => setStep("profile")} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "1.5rem", fontSize: "0.85rem" }}>
               <ChevronLeft size={16} /> Back
             </button>
             <h1 style={{ fontSize: "clamp(1.4rem,3vw,1.9rem)", fontWeight: 800, color: "#fff", marginBottom: "0.5rem", letterSpacing: "-0.03em" }}>
