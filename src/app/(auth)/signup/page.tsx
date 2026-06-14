@@ -54,8 +54,8 @@ export default function SignupPage() {
       return;
     }
 
-    // Step 3 — go to dashboard
-    window.location.href = "/dashboard";
+    // Step 3 — go to onboarding
+    window.location.href = "/onboarding";
   };
 
   const inputStyle: React.CSSProperties = {

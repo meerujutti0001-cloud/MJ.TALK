@@ -112,8 +112,8 @@ function SidebarContent({ org, user, unreadCount, pathname, onClose, onSignOut }
       {/* User */}
       <div style={{ padding: "0.75rem 0.5rem", borderTop: `1px solid ${C.sidebarBorder}` }}>
         {/* Contact Support button */}
-        <a
-          href={`mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@mjtalk.com"}?subject=Support%20Request`}
+        <Link
+          href="/contact"
           style={{
             display: "flex", alignItems: "center", gap: "0.65rem",
             padding: "0.5rem 0.75rem", borderRadius: "8px", marginBottom: "4px",
@@ -122,11 +122,11 @@ function SidebarContent({ org, user, unreadCount, pathname, onClose, onSignOut }
           }}
           onMouseEnter={e => { e.currentTarget.style.background = C.hoverItem; e.currentTarget.style.color = C.textBright; }}
           onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.textDim; }}
-          title="Email admin support"
+          title="Contact support team"
         >
           <LifeBuoy size={15} style={{ flexShrink: 0 }} />
           <span>Contact Support</span>
-        </a>
+        </Link>
 
         <div style={{
           display: "flex", alignItems: "center", gap: "0.65rem",
