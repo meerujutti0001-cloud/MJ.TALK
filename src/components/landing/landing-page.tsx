@@ -569,70 +569,224 @@ function Testimonials() {
    PRICING
 ══════════════════════════════════════════ */
 const plans = [
-  { name: "Starter", price: "Free", sub: "forever", desc: "Perfect for small sites and solo operators.", featured: false, cta: "Get started free", features: ["Up to 500 chats/month", "1 agent seat", "Live chat widget", "Email notifications", "Basic analytics"] },
-  { name: "Growth", price: "$29", sub: "/month", desc: "For growing teams ready to scale support.", featured: true, cta: "Start 14-day trial", features: ["Unlimited chats", "Unlimited agents", "AI chatbot (1,000 replies/mo)", "Visitor tracking", "CRM integrations", "Priority support"] },
-  { name: "Enterprise", price: "Custom", sub: "", desc: "Dedicated infrastructure for high-volume teams.", featured: false, cta: "Contact sales", features: ["Everything in Growth", "Unlimited AI replies", "White-label widget", "SLA guarantee", "Dedicated account manager", "SSO & advanced security"] },
+  {
+    name: "Starter",
+    badge: null,
+    price: "Free",
+    priceNote: "forever",
+    desc: "For small sites and solo operators getting started.",
+    cta: "Get started free",
+    ctaHref: "/signup",
+    ctaStyle: "outline",
+    features: [
+      "Up to 500 chats / month",
+      "1 agent seat",
+      "Live chat widget",
+      "Email notifications",
+      "Basic analytics",
+    ],
+  },
+  {
+    name: "Growth",
+    badge: "Premium",
+    price: "$29",
+    priceNote: "/ month",
+    desc: "For growing teams that need scale, speed, and AI.",
+    cta: "Start 14-day free trial",
+    ctaHref: "/signup",
+    ctaStyle: "solid",
+    features: [
+      "Unlimited chats",
+      "Unlimited agent seats",
+      "AI chatbot — 1,000 replies / mo",
+      "Visitor tracking",
+      "CRM integrations",
+      "Priority support",
+    ],
+  },
+  {
+    name: "Enterprise",
+    badge: null,
+    price: "$10",
+    priceNote: "/ month",
+    desc: "Custom infrastructure for high-volume teams.",
+    cta: "Contact sales",
+    ctaHref: "/contact",
+    ctaStyle: "outline",
+    features: [
+      "Everything in Growth",
+      "Unlimited AI replies",
+      "White-label widget",
+      "SLA guarantee",
+      "Dedicated account manager",
+      "SSO & advanced security",
+    ],
+  },
 ];
 
 function Pricing() {
   return (
-    <section id="pricing" style={{ padding: "5rem 2.5rem", background: "#fff" }}>
-      <div style={{ maxWidth: "1200px", margin: "0 auto", textAlign: "center" }}>
-        <div style={{ fontSize: "0.78rem", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "#14a085", marginBottom: "0.75rem" }}>
-          Simple pricing
-        </div>
-        <h2 style={{ fontFamily: "Inter, system-ui, sans-serif", letterSpacing: "-0.04em", fontStretch: "condensed", fontSize: "clamp(1.8rem, 3vw, 2.4rem)", fontWeight: 700, color: "#0a1628", lineHeight: 1.2, margin: "0 auto 0.75rem" }}>
-          No surprises. No per-agent fees.
-        </h2>
-        <p style={{ fontSize: "1rem", color: "#5a7878", maxWidth: "520px", lineHeight: 1.7, margin: "0 auto 3rem" }}>
-          Every plan includes unlimited agents and the full feature set. Only pay for active conversations.
-        </p>
+    <section id="pricing" style={{ padding: "6rem 2.5rem", background: "#f8fbfb" }}>
+      <div style={{ maxWidth: "1120px", margin: "0 auto" }}>
 
-        <div className="pricing-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1.5rem", maxWidth: "960px", margin: "0 auto" }}>
-          {plans.map(p => (
-            <div key={p.name} className="price-card" style={{
-              border: p.featured ? "1px solid #1dbfa0" : "1px solid #d4f4ee",
-              borderRadius: "14px", padding: "2rem", position: "relative",
-              background: p.featured ? "#edfaf7" : "#fff",
-              transition: "transform 0.15s",
-            }}>
-              {p.featured && (
-                <div style={{
-                  position: "absolute", top: "-12px", left: "50%", transform: "translateX(-50%)",
-                  background: "#14a085", color: "#fff", fontSize: "0.72rem", fontWeight: 700,
-                  letterSpacing: "0.05em", padding: "0.25rem 0.9rem", borderRadius: "999px", whiteSpace: "nowrap",
-                }}>Most Popular</div>
-              )}
-              <div style={{ fontFamily: "Inter, system-ui, sans-serif", letterSpacing: "-0.04em", fontStretch: "condensed", fontWeight: 700, fontSize: "0.9rem", color: "#0d8585", marginBottom: "0.5rem", textTransform: "uppercase",  }}>{p.name}</div>
-              <div style={{ fontFamily: "Inter, system-ui, sans-serif", letterSpacing: "-0.04em", fontStretch: "condensed", fontSize: "2.2rem", fontWeight: 800, color: "#0a1628", lineHeight: 1, marginBottom: "0.25rem" }}>
-                {p.price} <span style={{ fontSize: "1rem", fontWeight: 400, color: "#5a7878" }}>{p.sub}</span>
-              </div>
-              <p style={{ fontSize: "0.82rem", color: "#5a7878", marginBottom: "1.5rem" }}>{p.desc}</p>
-              <ul style={{ listStyle: "none", padding: 0, display: "flex", flexDirection: "column", gap: "0.6rem", marginBottom: "1.75rem", textAlign: "left" }}>
-                {p.features.map(f => (
-                  <li key={f} style={{ fontSize: "0.83rem", color: "#2d4a4a", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <span style={{
-                      width: "16px", height: "16px", flexShrink: 0,
-                      background: "#d4f4ee", borderRadius: "50%",
-                      display: "inline-flex", alignItems: "center", justifyContent: "center",
-                    }}>
-                      <Check size={10} color="#0d8585" strokeWidth={2.5} />
-                    </span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Link href="/signup" className="plan-btn" style={{
-                width: "100%", padding: "0.7rem", borderRadius: "7px", fontWeight: 600,
-                fontSize: "0.875rem", textAlign: "center", display: "block",
-                textDecoration: "none", transition: "all 0.2s",
-                background: p.featured ? "#0d8585" : "transparent",
-                color: p.featured ? "#fff" : "#0a7070",
-                border: p.featured ? "1.5px solid #0d8585" : "1.5px solid #1dbfa0",
-              }}>{p.cta}</Link>
-            </div>
-          ))}
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: "3.5rem" }}>
+          <div style={{
+            display: "inline-block",
+            fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.12em",
+            textTransform: "uppercase", color: "#14a085",
+            background: "#edfaf7", border: "1px solid #d4f4ee",
+            padding: "0.3rem 0.85rem", borderRadius: "999px", marginBottom: "1rem",
+          }}>Simple pricing</div>
+          <h2 style={{
+            fontFamily: "Inter, system-ui, sans-serif", letterSpacing: "-0.04em",
+            fontSize: "clamp(1.75rem, 3vw, 2.25rem)", fontWeight: 800,
+            color: "#0a1628", lineHeight: 1.15, marginBottom: "0.65rem",
+          }}>No surprises. No per-agent fees.</h2>
+          <p style={{ fontSize: "0.9rem", color: "#5a7878", maxWidth: "440px", lineHeight: 1.75, margin: "0 auto" }}>
+            Every plan includes the full feature set. Only pay for active conversations.
+          </p>
         </div>
+
+        {/* Cards */}
+        <div className="pricing-grid" style={{
+          display: "grid", gridTemplateColumns: "repeat(3,1fr)",
+          gap: "1.25rem", alignItems: "stretch",
+        }}>
+          {plans.map(p => {
+            const isFeatured = p.ctaStyle === "solid";
+            return (
+              <div key={p.name} className="price-card" style={{
+                position: "relative",
+                borderRadius: "16px",
+                padding: isFeatured ? "2.25rem 2rem" : "2rem",
+                display: "flex", flexDirection: "column",
+                background: isFeatured
+                  ? "linear-gradient(160deg,#042e2e 0%,#064f50 60%,#0a7070 100%)"
+                  : "#fff",
+                border: isFeatured ? "1.5px solid #1dbfa0" : "1.5px solid #e2eeed",
+                boxShadow: isFeatured
+                  ? "0 20px 60px rgba(13,133,133,0.25), 0 4px 16px rgba(0,0,0,0.12)"
+                  : "0 2px 12px rgba(10,22,40,0.04)",
+                transition: "transform 0.18s, box-shadow 0.18s",
+              }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = "translateY(-4px)";
+                  e.currentTarget.style.boxShadow = isFeatured
+                    ? "0 28px 72px rgba(13,133,133,0.32), 0 4px 20px rgba(0,0,0,0.14)"
+                    : "0 8px 32px rgba(10,22,40,0.10)";
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = isFeatured
+                    ? "0 20px 60px rgba(13,133,133,0.25), 0 4px 16px rgba(0,0,0,0.12)"
+                    : "0 2px 12px rgba(10,22,40,0.04)";
+                }}
+              >
+                {/* Badge */}
+                {p.badge && (
+                  <div style={{
+                    position: "absolute", top: "-13px", left: "50%", transform: "translateX(-50%)",
+                    background: "linear-gradient(90deg,#14a085,#1dbfa0)",
+                    color: "#fff", fontSize: "0.65rem", fontWeight: 800,
+                    letterSpacing: "0.12em", textTransform: "uppercase",
+                    padding: "0.28rem 1rem", borderRadius: "999px",
+                    whiteSpace: "nowrap", boxShadow: "0 4px 12px rgba(20,160,133,0.4)",
+                  }}>{p.badge}</div>
+                )}
+
+                {/* Plan name */}
+                <div style={{
+                  fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                  color: isFeatured ? "#4dd4b8" : "#14a085",
+                  marginBottom: "1.1rem",
+                }}>{p.name}</div>
+
+                {/* Price */}
+                <div style={{ display: "flex", alignItems: "baseline", gap: "0.3rem", marginBottom: "0.4rem" }}>
+                  <span style={{
+                    fontSize: "2rem", fontWeight: 800, letterSpacing: "-0.04em",
+                    color: isFeatured ? "#fff" : "#0a1628", lineHeight: 1,
+                  }}>{p.price}</span>
+                  <span style={{
+                    fontSize: "0.78rem", fontWeight: 500,
+                    color: isFeatured ? "rgba(255,255,255,0.5)" : "#8aa3a3",
+                  }}>{p.priceNote}</span>
+                </div>
+
+                {/* Desc */}
+                <p style={{
+                  fontSize: "0.8rem", lineHeight: 1.6,
+                  color: isFeatured ? "rgba(255,255,255,0.55)" : "#8aa3a3",
+                  marginBottom: "1.5rem",
+                }}>{p.desc}</p>
+
+                {/* Divider */}
+                <div style={{
+                  height: "1px",
+                  background: isFeatured ? "rgba(255,255,255,0.1)" : "#eef4f3",
+                  marginBottom: "1.25rem",
+                }} />
+
+                {/* Features */}
+                <ul style={{
+                  listStyle: "none", padding: 0, margin: 0,
+                  display: "flex", flexDirection: "column", gap: "0.65rem",
+                  flex: 1,
+                }}>
+                  {p.features.map(f => (
+                    <li key={f} style={{
+                      fontSize: "0.815rem", display: "flex", alignItems: "flex-start", gap: "0.55rem",
+                      color: isFeatured ? "rgba(255,255,255,0.78)" : "#2d4a4a",
+                      lineHeight: 1.45,
+                    }}>
+                      <span style={{
+                        marginTop: "1px", width: "16px", height: "16px", flexShrink: 0,
+                        background: isFeatured ? "rgba(29,191,160,0.2)" : "#edfaf7",
+                        borderRadius: "50%",
+                        display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        <Check size={9} color={isFeatured ? "#4dd4b8" : "#0d8585"} strokeWidth={3} />
+                      </span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+
+                {/* CTA */}
+                <Link href={p.ctaHref} style={{
+                  marginTop: "2rem",
+                  display: "block", textAlign: "center",
+                  padding: "0.7rem 1rem",
+                  borderRadius: "8px",
+                  fontSize: "0.83rem", fontWeight: 700,
+                  textDecoration: "none",
+                  letterSpacing: "0.01em",
+                  transition: "all 0.18s",
+                  background: isFeatured ? "#1dbfa0" : "transparent",
+                  color: isFeatured ? "#042e2e" : "#0d8585",
+                  border: isFeatured ? "1.5px solid transparent" : "1.5px solid #1dbfa0",
+                }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = isFeatured ? "#4dd4b8" : "#edfaf7";
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = isFeatured ? "#1dbfa0" : "transparent";
+                  }}
+                >{p.cta}</Link>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Footer note */}
+        <p style={{
+          textAlign: "center", marginTop: "2rem",
+          fontSize: "0.75rem", color: "#8aa3a3", lineHeight: 1.6,
+        }}>
+          All plans include a 14-day free trial. No credit card required to start.&nbsp;&nbsp;·&nbsp;&nbsp;Cancel anytime.
+        </p>
       </div>
     </section>
   );
