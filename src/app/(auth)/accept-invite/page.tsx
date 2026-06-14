@@ -6,7 +6,10 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card, CardContent, CardDescription, CardFooter,
+  CardHeader, CardTitle,
+} from "@/components/ui/card";
 import { MessageSquare, Loader2, Users } from "lucide-react";
 
 function AcceptInviteForm() {
@@ -20,17 +23,23 @@ function AcceptInviteForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
+  const [lookupDone, setLookupDone] = useState(false);
 
+  /* ── Fetch email via API (service client bypasses RLS) ── */
   useEffect(() => {
-    if (!inviteId) return;
-    // Initialize Supabase inside effect — safe, client-only
-    const supabase = createClient();
-    supabase
-      .from("team_members")
-      .select("email")
-      .eq("id", inviteId)
-      .single()
-      .then(({ data }) => { if (data) setEmail(data.email); });
+    if (!inviteId) { setLookupDone(true); return; }
+
+    fetch(`/api/auth/accept-invite?id=${encodeURIComponent(inviteId)}`)
+      .then(async (res) => {
+        const body = await res.json();
+        if (!res.ok) {
+          setError(body.error ?? "Invitation not found or already used.");
+        } else {
+          setEmail(body.email);
+        }
+      })
+      .catch(() => setError("Could not load invitation. Please check the link."))
+      .finally(() => setLookupDone(true));
   }, [inviteId]);
 
   const handleAccept = async (e: React.FormEvent) => {
@@ -43,7 +52,6 @@ function AcceptInviteForm() {
 
     setLoading(true);
 
-    // Sign up via API (auto-confirms the user)
     const res = await fetch("/api/auth/accept-invite", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -57,8 +65,8 @@ function AcceptInviteForm() {
       return;
     }
 
-    // Sign in
-    const supabase = createClient(); // inside handler — safe
+    // Sign in automatically
+    const supabase = createClient();
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
     if (signInError) {
       setError("Account created. Please sign in.");
@@ -78,6 +86,18 @@ function AcceptInviteForm() {
     );
   }
 
+  /* Loading state while we look up the invite */
+  if (!lookupDone) {
+    return (
+      <Card className="border-slate-700 bg-slate-800/50 backdrop-blur">
+        <CardContent className="py-12 flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
+          <p className="text-slate-400 text-sm">Checking invitation…</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="border-slate-700 bg-slate-800/50 backdrop-blur">
       <CardHeader className="space-y-1 text-center">
@@ -86,7 +106,8 @@ function AcceptInviteForm() {
         </div>
         <CardTitle className="text-2xl text-white">Accept invitation</CardTitle>
         <CardDescription className="text-slate-400">
-          You&apos;ve been invited to join <strong className="text-slate-300">{orgName}</strong>.
+          You&apos;ve been invited to join{" "}
+          <strong className="text-slate-300">{orgName}</strong>.
           Create a password to get started.
         </CardDescription>
       </CardHeader>
@@ -98,43 +119,64 @@ function AcceptInviteForm() {
               {error}
             </div>
           )}
+
           {email && (
             <div className="space-y-2">
               <Label className="text-slate-300">Email</Label>
-              <Input value={email} disabled className="bg-slate-700/50 border-slate-600 text-slate-400" />
+              <Input
+                value={email}
+                disabled
+                className="bg-slate-700/50 border-slate-600 text-slate-400"
+              />
             </div>
           )}
-          <div className="space-y-2">
-            <Label htmlFor="password" className="text-slate-300">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-              className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-500 focus:border-indigo-500"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="confirmPassword" className="text-slate-300">Confirm Password</Label>
-            <Input
-              id="confirmPassword"
-              type="password"
-              placeholder="••••••••"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-500 focus:border-indigo-500"
-            />
-          </div>
+
+          {/* Only show password fields if the invite is valid */}
+          {!error && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-slate-300">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={8}
+                  className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-500 focus:border-indigo-500"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className="text-slate-300">Confirm Password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-500 focus:border-indigo-500"
+                />
+              </div>
+            </>
+          )}
         </CardContent>
-        <CardFooter>
-          <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white" disabled={loading}>
-            {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Joining...</> : "Join workspace"}
-          </Button>
-        </CardFooter>
+
+        {!error && (
+          <CardFooter>
+            <Button
+              type="submit"
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+              disabled={loading}
+            >
+              {loading
+                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Joining...</>
+                : "Join workspace"
+              }
+            </Button>
+          </CardFooter>
+        )}
       </form>
     </Card>
   );
@@ -148,7 +190,7 @@ export default function AcceptInvitePage() {
           <div className="w-10 h-10 bg-indigo-500 rounded-xl flex items-center justify-center">
             <MessageSquare className="w-6 h-6 text-white" />
           </div>
-          <span className="text-2xl font-bold text-white">SupportAI</span>
+          <span className="text-2xl font-bold text-white">MJ.TALK</span>
         </div>
         <Suspense fallback={<div className="text-slate-400 text-center">Loading...</div>}>
           <AcceptInviteForm />

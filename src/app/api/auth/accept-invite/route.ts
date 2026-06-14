@@ -1,6 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 
+/* ── GET /api/auth/accept-invite?id=<inviteId>
+   Returns the email on the invite so the page can prefill it
+   without needing the user to be authenticated (uses service client). */
+export async function GET(req: NextRequest) {
+  try {
+    const inviteId = req.nextUrl.searchParams.get("id");
+    if (!inviteId) {
+      return NextResponse.json({ error: "Missing invite id" }, { status: 400 });
+    }
+
+    const supabase = createServiceClient();
+    const { data: invite, error } = await supabase
+      .from("team_members")
+      .select("id, email, org_id, accepted_at")
+      .eq("id", inviteId)
+      .single();
+
+    if (error || !invite) {
+      return NextResponse.json({ error: "Invitation not found" }, { status: 404 });
+    }
+
+    if (invite.accepted_at) {
+      return NextResponse.json({ error: "Invitation already accepted" }, { status: 410 });
+    }
+
+    return NextResponse.json({ email: invite.email });
+  } catch (err) {
+    console.error("Accept invite GET error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { email, password, inviteId } = await req.json();
@@ -11,7 +43,7 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServiceClient();
 
-    // Verify invite exists and matches email
+    // Verify invite exists and is valid
     const { data: invite, error: inviteError } = await supabase
       .from("team_members")
       .select("id, email, org_id, accepted_at")
@@ -30,7 +62,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email does not match invitation" }, { status: 400 });
     }
 
-    // Create the user account
+    // Create the user account (email_confirm: true skips email verification)
     const { data: authData, error: signUpError } = await supabase.auth.admin.createUser({
       email,
       password,
@@ -38,10 +70,10 @@ export async function POST(req: NextRequest) {
     });
 
     if (signUpError || !authData.user) {
-      // If user already exists, just update the invite
-      if (signUpError?.message?.includes("already")) {
-        const { data: existingUser } = await supabase.auth.admin.listUsers();
-        const found = existingUser?.users?.find((u) => u.email === email);
+      // If user already exists, just link and accept the invite
+      if (signUpError?.message?.toLowerCase().includes("already")) {
+        const { data: existingUsers } = await supabase.auth.admin.listUsers();
+        const found = existingUsers?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase());
         if (found) {
           await supabase
             .from("team_members")
@@ -53,7 +85,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: signUpError?.message ?? "Failed to create account" }, { status: 400 });
     }
 
-    // Link the user to the team member record
+    // Link the new user to the team member record
     await supabase
       .from("team_members")
       .update({ user_id: authData.user.id, accepted_at: new Date().toISOString() })
@@ -61,7 +93,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("Accept invite error:", err);
+    console.error("Accept invite POST error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
