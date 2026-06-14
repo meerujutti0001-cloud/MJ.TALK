@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 
 const MODELS = [
-  "google/gemini-2.0-flash-001",
-  "google/gemini-flash-1.5",
-  "meta-llama/llama-3.1-8b-instruct:free",
   "openai/gpt-4o-mini",
+  "google/gemini-2.0-flash-exp:free",
+  "meta-llama/llama-3.1-8b-instruct",
+  "anthropic/claude-3-haiku",
 ];
 
 export async function GET() {
