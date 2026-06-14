@@ -1,36 +1,41 @@
 import { NextResponse } from "next/server";
-import { streamText } from "ai";
-import { chatModel } from "@/lib/ai";
-
-export const runtime = "nodejs";
-export const maxDuration = 30;
 
 export async function GET() {
-  const hasKey = !!process.env.OPENROUTER_API_KEY;
-  const keyPrefix = process.env.OPENROUTER_API_KEY?.slice(0, 12) ?? "NOT SET";
+  const key = process.env.OPENROUTER_API_KEY;
 
-  if (!hasKey) {
-    return NextResponse.json({ error: "OPENROUTER_API_KEY not set", keyPrefix });
+  if (!key) {
+    return NextResponse.json({ error: "OPENROUTER_API_KEY is NOT set on this server" }, { status: 500 });
   }
 
+  // Test OpenRouter with a minimal non-streaming call
   try {
-    const result = streamText({
-      model: chatModel,
-      messages: [{ role: "user", content: "Say exactly: WORKING" }],
-      maxOutputTokens: 20,
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${key}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://mj-talk.vercel.app",
+        "X-Title": "MJ.TALK Test",
+      },
+      body: JSON.stringify({
+        model: "openai/gpt-4o-mini",
+        messages: [{ role: "user", content: "Reply with exactly the word: WORKING" }],
+        max_tokens: 10,
+        stream: false,
+      }),
     });
 
-    let text = "";
-    for await (const chunk of result.textStream) {
-      text += chunk;
-    }
+    const data = await res.json();
+    const reply = data.choices?.[0]?.message?.content ?? null;
 
-    return NextResponse.json({ ok: true, keyPrefix, response: text });
-  } catch (e) {
     return NextResponse.json({
-      error: "AI call failed",
-      detail: e instanceof Error ? e.message : String(e),
-      keyPrefix,
-    }, { status: 500 });
+      key_set: true,
+      key_prefix: key.slice(0, 12) + "...",
+      openrouter_status: res.status,
+      reply,
+      raw: data,
+    });
+  } catch (e) {
+    return NextResponse.json({ key_set: true, error: String(e) }, { status: 500 });
   }
 }
