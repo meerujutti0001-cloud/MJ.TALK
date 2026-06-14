@@ -138,26 +138,29 @@ function Step3LiveChat({
   botName, setBotName,
   botColor, setBotColor, customColor, setCustomColor,
   preChatForm, setPreChatForm,
+  errors, clearError,
 }: {
   botName: string; setBotName: (v: string) => void;
   botColor: string; setBotColor: (v: string) => void;
   customColor: string; setCustomColor: (v: string) => void;
   preChatForm: boolean; setPreChatForm: (v: boolean) => void;
+  errors: Record<string, string>; clearError: (k: string) => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       {/* Bot name */}
       <div>
-        <label style={labelStyle}><Bot size={14} style={{ display: "inline", marginRight: 4 }} />Chat Widget Name</label>
-        <input type="text" value={botName} onChange={e => setBotName(e.target.value)}
+        <label style={labelStyle}><Bot size={14} style={{ display: "inline", marginRight: 4 }} />Chat Widget Name <span style={{ color: "#f87171" }}>*</span></label>
+        <input type="text" value={botName} onChange={e => { setBotName(e.target.value); if (e.target.value.trim()) clearError("botName"); }}
           placeholder="Support Chat"
-          style={inputStyle}
+          style={{ ...inputStyle, borderColor: errors.botName ? "rgba(239,68,68,0.6)" : undefined }}
           onFocus={e => e.target.style.borderColor = "#0d8585"}
-          onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.12)"}
+          onBlur={e => e.target.style.borderColor = errors.botName ? "rgba(239,68,68,0.6)" : "rgba(255,255,255,0.12)"}
         />
-        <p style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.3)", marginTop: 4 }}>
-          This name appears in the chat header your visitors see.
-        </p>
+        {errors.botName
+          ? <p style={{ fontSize: "0.75rem", color: "#f87171", marginTop: 4 }}>{errors.botName}</p>
+          : <p style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.3)", marginTop: 4 }}>This name appears in the chat header your visitors see.</p>
+        }
       </div>
 
       {/* Widget color */}
@@ -220,23 +223,26 @@ function Step3AIChatbot({
   customPrompt, setCustomPrompt,
   selectedTone, setSelectedTone,
   escalationKeyword, setEscalationKeyword,
+  errors, clearError,
 }: {
   botName: string; setBotName: (v: string) => void;
   customPrompt: string; setCustomPrompt: (v: string) => void;
   selectedTone: string; setSelectedTone: (v: string) => void;
   escalationKeyword: string; setEscalationKeyword: (v: string) => void;
+  errors: Record<string, string>; clearError: (k: string) => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       {/* Bot name */}
       <div>
-        <label style={labelStyle}><Bot size={14} style={{ display: "inline", marginRight: 4 }} />Bot Name</label>
-        <input type="text" value={botName} onChange={e => setBotName(e.target.value)}
+        <label style={labelStyle}><Bot size={14} style={{ display: "inline", marginRight: 4 }} />Bot Name <span style={{ color: "#f87171" }}>*</span></label>
+        <input type="text" value={botName} onChange={e => { setBotName(e.target.value); if (e.target.value.trim()) clearError("botName"); }}
           placeholder="Aria"
-          style={inputStyle}
+          style={{ ...inputStyle, borderColor: errors.botName ? "rgba(239,68,68,0.6)" : undefined }}
           onFocus={e => e.target.style.borderColor = "#8b5cf6"}
-          onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.12)"}
+          onBlur={e => e.target.style.borderColor = errors.botName ? "rgba(239,68,68,0.6)" : "rgba(255,255,255,0.12)"}
         />
+        {errors.botName && <p style={{ fontSize: "0.75rem", color: "#f87171", marginTop: 4 }}>{errors.botName}</p>}
       </div>
 
       {/* Tone selector */}
@@ -259,19 +265,20 @@ function Step3AIChatbot({
 
       {/* Custom system prompt */}
       <div>
-        <label style={labelStyle}><AlignLeft size={14} style={{ display: "inline", marginRight: 4 }} />System Prompt</label>
+        <label style={labelStyle}><AlignLeft size={14} style={{ display: "inline", marginRight: 4 }} />System Prompt <span style={{ color: "#f87171" }}>*</span></label>
         <textarea
           value={customPrompt}
-          onChange={e => setCustomPrompt(e.target.value)}
+          onChange={e => { setCustomPrompt(e.target.value); if (e.target.value.trim()) clearError("customPrompt"); }}
           rows={5}
           placeholder="You are a helpful support agent for [your company]. Answer questions about..."
-          style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6, fontFamily: "inherit" }}
+          style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6, fontFamily: "inherit", borderColor: errors.customPrompt ? "rgba(239,68,68,0.6)" : undefined }}
           onFocus={e => e.target.style.borderColor = "#8b5cf6"}
-          onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.12)"}
+          onBlur={e => e.target.style.borderColor = errors.customPrompt ? "rgba(239,68,68,0.6)" : "rgba(255,255,255,0.12)"}
         />
-        <p style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.3)", marginTop: 4 }}>
-          Describe what your bot knows, its role, and how it should behave.
-        </p>
+        {errors.customPrompt
+          ? <p style={{ fontSize: "0.75rem", color: "#f87171", marginTop: 4 }}>{errors.customPrompt}</p>
+          : <p style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.3)", marginTop: 4 }}>Describe what your bot knows, its role, and how it should behave.</p>
+        }
       </div>
 
       {/* Escalation keyword */}
@@ -300,16 +307,22 @@ function Step3KnowledgeBase({
   sourceUrls, setSourceUrls,
   newTopic, setNewTopic,
   newUrl, setNewUrl,
+  errors, clearError,
 }: {
   botName: string; setBotName: (v: string) => void;
   faqTopics: string[]; setFaqTopics: (v: string[]) => void;
   sourceUrls: string[]; setSourceUrls: (v: string[]) => void;
   newTopic: string; setNewTopic: (v: string) => void;
   newUrl: string; setNewUrl: (v: string) => void;
+  errors: Record<string, string>; clearError: (k: string) => void;
 }) {
   const addTopic = () => {
     const t = newTopic.trim();
-    if (t && !faqTopics.includes(t)) { setFaqTopics([...faqTopics, t]); setNewTopic(""); }
+    if (t && !faqTopics.includes(t)) {
+      setFaqTopics([...faqTopics, t]);
+      setNewTopic("");
+      clearError("faqTopics");
+    }
   };
   const removeTopic = (t: string) => setFaqTopics(faqTopics.filter(x => x !== t));
 
@@ -323,18 +336,19 @@ function Step3KnowledgeBase({
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       {/* Bot name */}
       <div>
-        <label style={labelStyle}><Bot size={14} style={{ display: "inline", marginRight: 4 }} />Assistant Name</label>
-        <input type="text" value={botName} onChange={e => setBotName(e.target.value)}
+        <label style={labelStyle}><Bot size={14} style={{ display: "inline", marginRight: 4 }} />Assistant Name <span style={{ color: "#f87171" }}>*</span></label>
+        <input type="text" value={botName} onChange={e => { setBotName(e.target.value); if (e.target.value.trim()) clearError("botName"); }}
           placeholder="Help Center Bot"
-          style={inputStyle}
+          style={{ ...inputStyle, borderColor: errors.botName ? "rgba(239,68,68,0.6)" : undefined }}
           onFocus={e => e.target.style.borderColor = "#3b82f6"}
-          onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.12)"}
+          onBlur={e => e.target.style.borderColor = errors.botName ? "rgba(239,68,68,0.6)" : "rgba(255,255,255,0.12)"}
         />
+        {errors.botName && <p style={{ fontSize: "0.75rem", color: "#f87171", marginTop: 4 }}>{errors.botName}</p>}
       </div>
 
       {/* FAQ Topics */}
       <div>
-        <label style={labelStyle}><Tag size={14} style={{ display: "inline", marginRight: 4 }} />FAQ Topics</label>
+        <label style={labelStyle}><Tag size={14} style={{ display: "inline", marginRight: 4 }} />FAQ Topics <span style={{ color: "#f87171" }}>*</span></label>
         <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.35)", marginBottom: "0.6rem" }}>
           Add the main topics your knowledge base covers.
         </p>
@@ -342,15 +356,16 @@ function Step3KnowledgeBase({
           <input type="text" value={newTopic} onChange={e => setNewTopic(e.target.value)}
             onKeyDown={e => e.key === "Enter" && addTopic()}
             placeholder="e.g. Billing, Shipping, Returns"
-            style={{ ...inputStyle, flex: 1 }}
+            style={{ ...inputStyle, flex: 1, borderColor: errors.faqTopics ? "rgba(239,68,68,0.6)" : undefined }}
             onFocus={e => e.target.style.borderColor = "#3b82f6"}
-            onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.12)"}
+            onBlur={e => e.target.style.borderColor = errors.faqTopics && faqTopics.length === 0 ? "rgba(239,68,68,0.6)" : "rgba(255,255,255,0.12)"}
           />
           <button onClick={addTopic}
             style={{ padding: "0 1rem", background: "rgba(59,130,246,0.2)", border: "1px solid rgba(59,130,246,0.4)", borderRadius: 8, color: "#93c5fd", cursor: "pointer", display: "flex", alignItems: "center" }}>
             <Plus size={16} />
           </button>
         </div>
+        {errors.faqTopics && faqTopics.length === 0 && <p style={{ fontSize: "0.75rem", color: "#f87171", marginBottom: 4 }}>{errors.faqTopics}</p>}
         {faqTopics.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
             {faqTopics.map(t => (
@@ -408,6 +423,7 @@ function Step3WidgetBranding({
   avatarEmoji, setAvatarEmoji,
   widgetPosition, setWidgetPosition,
   greeting, setGreeting,
+  errors, clearError,
 }: {
   botName: string; setBotName: (v: string) => void;
   botColor: string; setBotColor: (v: string) => void;
@@ -415,30 +431,35 @@ function Step3WidgetBranding({
   avatarEmoji: string; setAvatarEmoji: (v: string) => void;
   widgetPosition: string; setWidgetPosition: (v: string) => void;
   greeting: string; setGreeting: (v: string) => void;
+  errors: Record<string, string>; clearError: (k: string) => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       {/* Bot name */}
       <div>
-        <label style={labelStyle}><Bot size={14} style={{ display: "inline", marginRight: 4 }} />Widget Title</label>
-        <input type="text" value={botName} onChange={e => setBotName(e.target.value)}
+        <label style={labelStyle}><Bot size={14} style={{ display: "inline", marginRight: 4 }} />Widget Title <span style={{ color: "#f87171" }}>*</span></label>
+        <input type="text" value={botName} onChange={e => { setBotName(e.target.value); if (e.target.value.trim()) clearError("botName"); }}
           placeholder="Chat with us"
-          style={inputStyle}
+          style={{ ...inputStyle, borderColor: errors.botName ? "rgba(239,68,68,0.6)" : undefined }}
           onFocus={e => e.target.style.borderColor = "#f97316"}
-          onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.12)"}
+          onBlur={e => e.target.style.borderColor = errors.botName ? "rgba(239,68,68,0.6)" : "rgba(255,255,255,0.12)"}
         />
+        {errors.botName && <p style={{ fontSize: "0.75rem", color: "#f87171", marginTop: 4 }}>{errors.botName}</p>}
       </div>
 
       {/* Greeting message */}
       <div>
-        <label style={labelStyle}><MessageCircle size={14} style={{ display: "inline", marginRight: 4 }} />Opening Greeting</label>
-        <input type="text" value={greeting} onChange={e => setGreeting(e.target.value)}
+        <label style={labelStyle}><MessageCircle size={14} style={{ display: "inline", marginRight: 4 }} />Opening Greeting <span style={{ color: "#f87171" }}>*</span></label>
+        <input type="text" value={greeting} onChange={e => { setGreeting(e.target.value); if (e.target.value.trim()) clearError("greeting"); }}
           placeholder="Hi there 👋 How can we help?"
-          style={inputStyle}
+          style={{ ...inputStyle, borderColor: errors.greeting ? "rgba(239,68,68,0.6)" : undefined }}
           onFocus={e => e.target.style.borderColor = "#f97316"}
-          onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.12)"}
+          onBlur={e => e.target.style.borderColor = errors.greeting ? "rgba(239,68,68,0.6)" : "rgba(255,255,255,0.12)"}
         />
-        <p style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.3)", marginTop: 4 }}>First message visitors see when they open the widget.</p>
+        {errors.greeting
+          ? <p style={{ fontSize: "0.75rem", color: "#f87171", marginTop: 4 }}>{errors.greeting}</p>
+          : <p style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.3)", marginTop: 4 }}>First message visitors see when they open the widget.</p>
+        }
       </div>
 
       {/* Brand color */}
@@ -551,7 +572,10 @@ export function OnboardingFlow({ orgId, orgName }: OnboardingFlowProps) {
   const [greeting, setGreeting] = useState("");
 
   const [loading, setLoading] = useState(false);
+  const [skipping, setSkipping] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
+  const [step3Errors, setStep3Errors] = useState<Record<string, string>>({});
   const [createdBotId, setCreatedBotId] = useState<string | null>(null);
 
   /* ── step 3 heading/subtitle per product ── */
@@ -574,6 +598,55 @@ export function OnboardingFlow({ orgId, orgName }: OnboardingFlowProps) {
     },
   };
 
+  /* ── profile validation ── */
+  const validateProfile = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (!fullName.trim()) errs.fullName = "Your full name is required.";
+    if (!website.trim()) errs.website = "Your website URL is required.";
+    if (!industry) errs.industry = "Please select your industry.";
+    setProfileErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  /* ── step 3 validation per product ── */
+  const validateStep3 = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (product === "live_chat") {
+      if (!botName.trim()) errs.botName = "Chat widget name is required.";
+    } else if (product === "ticketing") {
+      if (!botName.trim()) errs.botName = "Bot name is required.";
+      if (!customPrompt.trim()) errs.customPrompt = "System prompt is required.";
+    } else if (product === "knowledge_base") {
+      if (!botName.trim()) errs.botName = "Assistant name is required.";
+      if (faqTopics.length === 0) errs.faqTopics = "Add at least one FAQ topic.";
+    } else if (product === "pages") {
+      if (!botName.trim()) errs.botName = "Widget title is required.";
+      if (!greeting.trim()) errs.greeting = "Opening greeting is required.";
+    }
+    setStep3Errors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  /* ── skip setup: create a minimal default bot then go to dashboard ── */
+  const handleSkip = async () => {
+    setSkipping(true);
+    try {
+      const supabase = createClient();
+      await supabase.from("chatbots").insert({
+        org_id: orgId,
+        name: orgName + " Support",
+        description: `AI support bot for ${orgName}`,
+        system_prompt: BOT_PROMPTS.live_chat,
+        status: "active",
+        widget_color: "#0d8585",
+        pre_chat_form_enabled: false,
+        escalation_keyword: "ESCALATE",
+        allowed_domains: null,
+      });
+    } catch { /* best-effort */ }
+    router.push("/dashboard");
+  };
+
   /* ── build system prompt at submit time ── */
   const buildPrompt = (): string => {
     if (product === "ticketing") {
@@ -594,6 +667,7 @@ export function OnboardingFlow({ orgId, orgName }: OnboardingFlowProps) {
 
   /* ── create chatbot & finish ── */
   const finish = async () => {
+    if (!validateStep3()) return;
     setLoading(true);
     setError(null);
     try {
@@ -660,9 +734,9 @@ export function OnboardingFlow({ orgId, orgName }: OnboardingFlowProps) {
 
       {/* Skip */}
       {step !== "install" && (
-        <button onClick={() => router.push("/dashboard")}
-          style={{ position: "fixed", top: "1.25rem", right: "1.5rem", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", fontSize: "0.8rem" }}>
-          Skip setup →
+        <button onClick={handleSkip} disabled={skipping}
+          style={{ position: "fixed", top: "1.25rem", right: "1.5rem", background: "none", border: "none", cursor: skipping ? "not-allowed" : "pointer", color: "rgba(255,255,255,0.4)", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+          {skipping ? <><Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> Skipping...</> : "Skip setup →"}
         </button>
       )}
 
@@ -729,24 +803,26 @@ export function OnboardingFlow({ orgId, orgName }: OnboardingFlowProps) {
               Tell us about yourself
             </h1>
             <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "0.875rem", marginBottom: "2rem" }}>
-              Help us personalize your experience. All fields are optional.
+              Help us personalize your experience.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
               <div>
-                <label style={labelStyle}>Your Full Name</label>
-                <input type="text" value={fullName} onChange={e => setFullName(e.target.value)}
-                  placeholder="Jane Smith" style={inputStyle}
+                <label style={labelStyle}>Your Full Name <span style={{ color: "#f87171" }}>*</span></label>
+                <input type="text" value={fullName} onChange={e => { setFullName(e.target.value); if (e.target.value.trim()) setProfileErrors(prev => ({ ...prev, fullName: "" })); }}
+                  placeholder="Jane Smith" style={{ ...inputStyle, borderColor: profileErrors.fullName ? "rgba(239,68,68,0.6)" : undefined }}
                   onFocus={e => e.target.style.borderColor = "#0d8585"}
-                  onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.12)"}
+                  onBlur={e => e.target.style.borderColor = profileErrors.fullName ? "rgba(239,68,68,0.6)" : "rgba(255,255,255,0.12)"}
                 />
+                {profileErrors.fullName && <p style={{ fontSize: "0.75rem", color: "#f87171", marginTop: 4 }}>{profileErrors.fullName}</p>}
               </div>
               <div>
-                <label style={labelStyle}>Your Website URL</label>
-                <input type="text" value={website} onChange={e => setWebsite(e.target.value)}
-                  placeholder="https://yoursite.com" style={inputStyle}
+                <label style={labelStyle}>Your Website URL <span style={{ color: "#f87171" }}>*</span></label>
+                <input type="text" value={website} onChange={e => { setWebsite(e.target.value); if (e.target.value.trim()) setProfileErrors(prev => ({ ...prev, website: "" })); }}
+                  placeholder="https://yoursite.com" style={{ ...inputStyle, borderColor: profileErrors.website ? "rgba(239,68,68,0.6)" : undefined }}
                   onFocus={e => e.target.style.borderColor = "#0d8585"}
-                  onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.12)"}
+                  onBlur={e => e.target.style.borderColor = profileErrors.website ? "rgba(239,68,68,0.6)" : "rgba(255,255,255,0.12)"}
                 />
+                {profileErrors.website && <p style={{ fontSize: "0.75rem", color: "#f87171", marginTop: 4 }}>{profileErrors.website}</p>}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                 <div>
@@ -761,18 +837,19 @@ export function OnboardingFlow({ orgId, orgName }: OnboardingFlowProps) {
                   </select>
                 </div>
                 <div>
-                  <label style={labelStyle}>Industry</label>
-                  <select value={industry} onChange={e => setIndustry(e.target.value)}
-                    style={{ ...inputStyle, cursor: "pointer" }}>
+                  <label style={labelStyle}>Industry <span style={{ color: "#f87171" }}>*</span></label>
+                  <select value={industry} onChange={e => { setIndustry(e.target.value); if (e.target.value) setProfileErrors(prev => ({ ...prev, industry: "" })); }}
+                    style={{ ...inputStyle, cursor: "pointer", borderColor: profileErrors.industry ? "rgba(239,68,68,0.6)" : undefined }}>
                     <option value="" style={{ background: "#1a1a2e" }}>Select industry</option>
                     {["E-commerce", "SaaS / Software", "Healthcare", "Education", "Finance", "Agency", "Real Estate", "Other"].map(i => (
                       <option key={i} value={i} style={{ background: "#1a1a2e" }}>{i}</option>
                     ))}
                   </select>
+                  {profileErrors.industry && <p style={{ fontSize: "0.75rem", color: "#f87171", marginTop: 4 }}>{profileErrors.industry}</p>}
                 </div>
               </div>
             </div>
-            <button onClick={() => setStep("chatbot")}
+            <button onClick={() => { if (validateProfile()) setStep("chatbot"); }}
               style={{ width: "100%", padding: "0.9rem", marginTop: "2rem", background: "linear-gradient(135deg,#0d8585,#14a085)", border: "none", borderRadius: "10px", color: "#fff", fontWeight: 700, fontSize: "1rem", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}
               onMouseEnter={e => e.currentTarget.style.opacity = "0.9"}
               onMouseLeave={e => e.currentTarget.style.opacity = "1"}
@@ -808,6 +885,7 @@ export function OnboardingFlow({ orgId, orgName }: OnboardingFlowProps) {
                 botColor={botColor} setBotColor={setBotColor}
                 customColor={customColor} setCustomColor={setCustomColor}
                 preChatForm={preChatForm} setPreChatForm={setPreChatForm}
+                errors={step3Errors} clearError={k => setStep3Errors(prev => ({ ...prev, [k]: "" }))}
               />
             )}
             {product === "ticketing" && (
@@ -816,6 +894,7 @@ export function OnboardingFlow({ orgId, orgName }: OnboardingFlowProps) {
                 customPrompt={customPrompt} setCustomPrompt={setCustomPrompt}
                 selectedTone={selectedTone} setSelectedTone={setSelectedTone}
                 escalationKeyword={escalationKeyword} setEscalationKeyword={setEscalationKeyword}
+                errors={step3Errors} clearError={k => setStep3Errors(prev => ({ ...prev, [k]: "" }))}
               />
             )}
             {product === "knowledge_base" && (
@@ -825,6 +904,7 @@ export function OnboardingFlow({ orgId, orgName }: OnboardingFlowProps) {
                 sourceUrls={sourceUrls} setSourceUrls={setSourceUrls}
                 newTopic={newTopic} setNewTopic={setNewTopic}
                 newUrl={newUrl} setNewUrl={setNewUrl}
+                errors={step3Errors} clearError={k => setStep3Errors(prev => ({ ...prev, [k]: "" }))}
               />
             )}
             {product === "pages" && (
@@ -835,6 +915,7 @@ export function OnboardingFlow({ orgId, orgName }: OnboardingFlowProps) {
                 avatarEmoji={avatarEmoji} setAvatarEmoji={setAvatarEmoji}
                 widgetPosition={widgetPosition} setWidgetPosition={setWidgetPosition}
                 greeting={greeting} setGreeting={setGreeting}
+                errors={step3Errors} clearError={k => setStep3Errors(prev => ({ ...prev, [k]: "" }))}
               />
             )}
 
