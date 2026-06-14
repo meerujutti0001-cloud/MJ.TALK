@@ -3,6 +3,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { SSRPolyfill } from "@/components/ssr-polyfill";
+import { FloatingWidget } from "@/components/floating-widget";
+import { createServiceClient } from "@/lib/supabase/server";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", weight: ["400", "500", "600", "700", "800"] });
 
@@ -31,11 +33,32 @@ const matchMediaPatch = `
 })();
 `;
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+  // Priority: explicit env var → first active chatbot in DB → nothing
+  let widgetChatbotId = process.env.NEXT_PUBLIC_DEMO_CHATBOT_ID?.trim() || null;
+
+  if (!widgetChatbotId) {
+    try {
+      const supabase = createServiceClient();
+      const { data } = await supabase
+        .from("chatbots")
+        .select("id")
+        .eq("status", "active")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .single();
+      widgetChatbotId = data?.id ?? null;
+    } catch {
+      // DB not reachable — skip widget
+    }
+  }
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -46,6 +69,10 @@ export default function RootLayout({
         <SSRPolyfill />
         {children}
         <Toaster />
+        {/* Floating AI assistant — shown on every page */}
+        {widgetChatbotId && (
+          <FloatingWidget chatbotId={widgetChatbotId} appUrl={appUrl} />
+        )}
       </body>
     </html>
   );
