@@ -29,23 +29,30 @@ export async function POST(req: NextRequest) {
     // Verify conversation belongs to user's org
     const { data: conversation } = await supabase
       .from("conversations")
-      .select("id, chatbot:chatbots(org_id)")
+      .select("id, chatbot_id, chatbots!inner(org_id)")
       .eq("id", conversationId)
       .single();
 
-    if (!conversation || conversation.chatbot?.org_id !== orgId) {
+    if (!conversation) {
       return NextResponse.json(
         { error: "Conversation not found" },
         { status: 404 }
       );
     }
 
-    // Get chatbot's org_id for notification
+    // Verify the chatbot belongs to the user's org
     const { data: chatbot } = await supabase
       .from("chatbots")
       .select("org_id")
-      .eq("id", (conversation.chatbot as any).org_id)
+      .eq("id", conversation.chatbot_id)
       .single();
+
+    if (!chatbot || chatbot.org_id !== orgId) {
+      return NextResponse.json(
+        { error: "Conversation not found" },
+        { status: 404 }
+      );
+    }
 
     // Create notification
     await supabase.from("notifications").insert({
