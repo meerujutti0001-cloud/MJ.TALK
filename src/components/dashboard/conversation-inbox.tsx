@@ -7,7 +7,7 @@ import {
   Search, MessageSquare, User, Clock, Globe, AlertTriangle,
   CheckCircle2, Send, Bot, ChevronDown, Filter, RefreshCw,
   Circle, MoreVertical, Inbox, Tag, ArrowLeft, Sparkles,
-  X, Hash, Phone, Mail, Maximize2, Flag,
+  X, Hash, Phone, Mail, Maximize2, Flag, Plus, UserPlus,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -88,6 +88,14 @@ export function ConversationInbox({
   const [showInfo, setShowInfo] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [flagging, setFlagging] = useState(false);
+  const [showNewConversation, setShowNewConversation] = useState(false);
+  const [creatingConversation, setCreatingConversation] = useState(false);
+  const [newConvData, setNewConvData] = useState({
+    chatbotId: chatbots[0]?.id || "",
+    visitorName: "",
+    visitorEmail: "",
+    initialMessage: ""
+  });
 
   /* ── scroll ── */
   const scrollToBottom = useCallback(() => {
@@ -256,6 +264,56 @@ export function ConversationInbox({
     }
   };
 
+  /* ── Create new conversation (admin-initiated) ── */
+  const handleCreateConversation = async () => {
+    if (!newConvData.chatbotId || creatingConversation) return;
+    
+    setCreatingConversation(true);
+
+    try {
+      const res = await fetch("/api/admin/create-conversation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newConvData),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to create conversation");
+      }
+
+      const data = await res.json();
+      
+      // Add to conversations list
+      setConversations((prev) => [data.conversation, ...prev]);
+      
+      // Select the new conversation
+      await selectConversation(data.conversation);
+      
+      // Close modal and reset form
+      setShowNewConversation(false);
+      setNewConvData({
+        chatbotId: chatbots[0]?.id || "",
+        visitorName: "",
+        visitorEmail: "",
+        initialMessage: ""
+      });
+
+      toast({ 
+        title: "Conversation created",
+        description: "You can now start chatting!",
+      });
+    } catch (error) {
+      toast({ 
+        title: "Failed to create conversation", 
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive" 
+      });
+    } finally {
+      setCreatingConversation(false);
+    }
+  };
+
   /* ── Filtered conversations (client-side for search) ── */
   const filtered = conversations.filter((c) => {
     if (statusFilter !== "all" && c.status !== statusFilter) return false;
@@ -293,6 +351,16 @@ export function ConversationInbox({
               Inbox
             </h2>
             <div className="flex items-center gap-1.5">
+              {/* New Conversation Button */}
+              <button
+                onClick={() => setShowNewConversation(true)}
+                className="h-7 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium flex items-center gap-1.5 transition-colors"
+                title="Create test conversation"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">New</span>
+              </button>
+              
               {escalatedCount > 0 && (
                 <span className="bg-red-100 text-red-700 text-xs font-semibold px-2 py-0.5 rounded-full">
                   {escalatedCount} escalated
@@ -863,6 +931,133 @@ export function ConversationInbox({
           </div>
         )}
       </div>
+    </div>
+
+      {/* ══════════════════════════════════════════════
+          NEW CONVERSATION MODAL
+      ══════════════════════════════════════════════ */}
+      {showNewConversation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <UserPlus className="w-5 h-5 text-emerald-600" />
+                    New Conversation
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Create a test conversation</p>
+                </div>
+                <button
+                  onClick={() => setShowNewConversation(false)}
+                  className="text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="px-6 py-5 space-y-4">
+              {/* Chatbot Selection */}
+              <div>
+                <label className="text-xs font-semibold text-slate-700 mb-1.5 block">
+                  Chatbot *
+                </label>
+                <Select
+                  value={newConvData.chatbotId}
+                  onValueChange={(v) => setNewConvData((prev) => ({ ...prev, chatbotId: v }))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select chatbot" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {chatbots.map((bot) => (
+                      <SelectItem key={bot.id} value={bot.id}>
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-3 h-3 rounded-full" 
+                            style={{ backgroundColor: bot.widget_color }}
+                          />
+                          {bot.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Visitor Name */}
+              <div>
+                <label className="text-xs font-semibold text-slate-700 mb-1.5 block">
+                  Visitor Name
+                </label>
+                <Input
+                  placeholder="Test User"
+                  value={newConvData.visitorName}
+                  onChange={(e) => setNewConvData((prev) => ({ ...prev, visitorName: e.target.value }))}
+                />
+              </div>
+
+              {/* Visitor Email */}
+              <div>
+                <label className="text-xs font-semibold text-slate-700 mb-1.5 block">
+                  Visitor Email (optional)
+                </label>
+                <Input
+                  type="email"
+                  placeholder="test@example.com"
+                  value={newConvData.visitorEmail}
+                  onChange={(e) => setNewConvData((prev) => ({ ...prev, visitorEmail: e.target.value }))}
+                />
+              </div>
+
+              {/* Initial Message */}
+              <div>
+                <label className="text-xs font-semibold text-slate-700 mb-1.5 block">
+                  Initial Message (optional)
+                </label>
+                <textarea
+                  placeholder="Hi, I need help with..."
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                  rows={3}
+                  value={newConvData.initialMessage}
+                  onChange={(e) => setNewConvData((prev) => ({ ...prev, initialMessage: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowNewConversation(false)}
+                disabled={creatingConversation}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateConversation}
+                disabled={!newConvData.chatbotId || creatingConversation}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {creatingConversation ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Conversation
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
