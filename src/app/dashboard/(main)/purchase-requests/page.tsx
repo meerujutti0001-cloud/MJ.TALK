@@ -10,26 +10,15 @@ export const metadata = {
 
 export default async function PurchaseRequestsPage() {
   const user = await requireAuth();
-  const serviceClient = createServiceClient();
-
-  // Check if user is admin (only meerujutti0.001@gmail.com)
+  
+  // STRICT: Only allow meerujutti0.001@gmail.com to access purchase requests
   const ADMIN_EMAIL = "meerujutti0.001@gmail.com";
   
-  // Check by email first (most reliable)
-  const isAdminByEmail = user.email === ADMIN_EMAIL;
-  
-  // Also check profile role from database
-  const { data: profile } = await serviceClient
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  const isAdmin = isAdminByEmail || profile?.role === "admin";
-
-  if (!isAdmin) {
+  if (user.email !== ADMIN_EMAIL) {
     redirect("/dashboard");
   }
+
+  const serviceClient = createServiceClient();
 
   // Fetch all purchase requests
   const { data: purchaseRequests, error } = await serviceClient

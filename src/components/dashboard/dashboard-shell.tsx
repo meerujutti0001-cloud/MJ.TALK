@@ -23,7 +23,7 @@ const navItems = [
   { href: "/dashboard/chatbots",            label: "Chatbots",           icon: Bot },
   { href: "/dashboard/conversations",       label: "Conversations",      icon: MessageSquare },
   { href: "/dashboard/analytics",           label: "Analytics",          icon: BarChart2 },
-  { href: "/dashboard/purchase-requests",   label: "Purchase Requests",  icon: ShoppingCart },
+  { href: "/dashboard/purchase-requests",   label: "Purchase Requests",  icon: ShoppingCart, adminOnly: true }, // Only for super admin
   { href: "/dashboard/team",                label: "Team",               icon: Users },
   { href: "/dashboard/notifications",       label: "Notifications",      icon: Bell, badge: true },
   { href: "/dashboard/settings",            label: "Settings",           icon: Settings },
@@ -55,6 +55,18 @@ function SidebarContent({ org, user, unreadCount, pathname, onClose, onSignOut }
   const isActive = (item: typeof navItems[0]) =>
     item.exact ? pathname === item.href : pathname.startsWith(item.href);
 
+  // Super admin email
+  const SUPER_ADMIN_EMAIL = "meerujutti0.001@gmail.com";
+  const isSuperAdmin = user.email === SUPER_ADMIN_EMAIL;
+
+  // Filter nav items based on permissions
+  const visibleNavItems = navItems.filter(item => {
+    if (item.adminOnly) {
+      return isSuperAdmin;
+    }
+    return true;
+  });
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
 
@@ -75,7 +87,7 @@ function SidebarContent({ org, user, unreadCount, pathname, onClose, onSignOut }
 
       {/* Nav */}
       <nav style={{ flex: 1, padding: "0.75rem 0.5rem", overflowY: "auto", display: "flex", flexDirection: "column", gap: "2px" }}>
-        {navItems.map(item => {
+        {visibleNavItems.map(item => {
           const active = isActive(item);
           return (
             <Link
