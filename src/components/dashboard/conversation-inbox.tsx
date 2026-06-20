@@ -7,7 +7,7 @@ import {
   Search, MessageSquare, User, Clock, Globe, AlertTriangle,
   CheckCircle2, Send, Bot, ChevronDown, Filter, RefreshCw,
   Circle, MoreVertical, Inbox, Tag, ArrowLeft, Sparkles,
-  X, Hash, Phone, Mail, Maximize2,
+  X, Hash, Phone, Mail, Maximize2, Flag,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -87,6 +87,7 @@ export function ConversationInbox({
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [flagging, setFlagging] = useState(false);
 
   /* ── scroll ── */
   const scrollToBottom = useCallback(() => {
@@ -218,6 +219,40 @@ export function ConversationInbox({
       setSelected((prev) => prev ? { ...prev, status } : prev);
       setConversations((prev) => prev.map((c) => c.id === selected.id ? { ...c, status } : c));
       toast({ title: `Marked as ${status}` });
+    }
+  };
+
+  /* ── Flag conversation ── */
+  const handleFlagConversation = async () => {
+    if (!selected || flagging) return;
+    setFlagging(true);
+
+    try {
+      const res = await fetch("/api/conversations/flag", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          conversationId: selected.id,
+          message: `Conversation flagged for review`
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to flag conversation");
+      }
+
+      toast({ 
+        title: "Conversation flagged",
+        description: "A notification has been created for your team.",
+      });
+    } catch (error) {
+      toast({ 
+        title: "Failed to flag", 
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive" 
+      });
+    } finally {
+      setFlagging(false);
     }
   };
 
@@ -485,6 +520,19 @@ export function ConversationInbox({
                     </SelectItem>
                   </SelectContent>
                 </Select>
+
+                {/* Flag button */}
+                <button
+                  onClick={handleFlagConversation}
+                  disabled={flagging || selected.status === "resolved"}
+                  className={cn(
+                    "h-7 w-7 flex items-center justify-center rounded-lg transition-colors",
+                    "text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  )}
+                  title="Flag for review"
+                >
+                  <Flag className="w-4 h-4" />
+                </button>
 
                 {/* Info toggle */}
                 <button

@@ -243,32 +243,84 @@ export function WidgetApp({ config }: WidgetAppProps) {
         throw new Error(errMsg);
       }
 
-      // Read the full plain-text response at once
-      const replyText = await res.text();
+      const contentType = res.headers.get("content-type") || "";
+      
+      // Check if response is streaming (text/event-stream) or regular text
+      if (contentType.includes("text/event-stream")) {
+        // Streaming response - show tokens as they arrive
+        const tempId = `ai_${Date.now()}`;
+        let fullText = "";
+        
+        // Add empty AI message that we'll update
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: tempId,
+            role: "assistant" as const,
+            content: "",
+            timestamp: new Date(),
+          },
+        ]);
+        
+        setIsTyping(false); // Stop typing indicator, show streaming instead
 
-      if (!replyText.trim()) {
-        throw new Error("Empty response from AI");
+        const reader = res.body?.getReader();
+        const decoder = new TextDecoder();
+
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            fullText += chunk;
+
+            // Update the message in real-time
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === tempId ? { ...m, content: fullText } : m
+              )
+            );
+          }
+        }
+
+        // Check escalation after full message received
+        const keyword = config.escalation_keyword ?? "ESCALATE";
+        if (fullText.toUpperCase().includes(keyword.toUpperCase())) {
+          setIsEscalated(true);
+        }
+
+        if (soundEnabled && fullText) playPing();
+        
+      } else {
+        // Regular response - show all at once (fallback)
+        const replyText = await res.text();
+
+        if (!replyText.trim()) {
+          throw new Error("Empty response from AI");
+        }
+
+        // Add AI message to chat
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `ai_${Date.now()}`,
+            role: "assistant" as const,
+            content: replyText,
+            timestamp: new Date(),
+          },
+        ]);
+
+        // Check escalation
+        const keyword = config.escalation_keyword ?? "ESCALATE";
+        if (replyText.toUpperCase().includes(keyword.toUpperCase())) {
+          setIsEscalated(true);
+        }
+
+        if (soundEnabled) playPing();
       }
-
-      // Add AI message to chat
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `ai_${Date.now()}`,
-          role: "assistant" as const,
-          content: replyText,
-          timestamp: new Date(),
-        },
-      ]);
+      
       setIsTyping(false);
-
-      // Check escalation
-      const keyword = config.escalation_keyword ?? "ESCALATE";
-      if (replyText.toUpperCase().includes(keyword.toUpperCase())) {
-        setIsEscalated(true);
-      }
-
-      if (soundEnabled) playPing();
 
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") return;

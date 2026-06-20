@@ -4,7 +4,7 @@ import { getOrgId } from "@/lib/get-org";
 import { redirect } from "next/navigation";
 import {
   BarChart2, MessageSquare, Bot, TrendingUp,
-  AlertTriangle, CheckCircle2, Users, Zap,
+  AlertTriangle, CheckCircle2, Users, Zap, Clock,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
@@ -31,7 +31,7 @@ export default async function AnalyticsPage() {
       if (ids.length === 0) return { data: [] };
       return supabase
         .from("conversations")
-        .select("id, chatbot_id, status, message_count, created_at")
+        .select("id, chatbot_id, status, message_count, created_at, updated_at")
         .in("chatbot_id", ids)
         .order("created_at", { ascending: true });
     })(),
@@ -47,6 +47,16 @@ export default async function AnalyticsPage() {
   const resolutionRate  = pct(totalResolved, totalConversations);
   const escalationRate  = pct(totalEscalated, totalConversations);
   const avgMsgsPerConv  = totalConversations > 0 ? (totalMessages / totalConversations).toFixed(1) : "0";
+  
+  // Calculate average session length (in minutes)
+  const totalSessionTime = convs.reduce((sum, c) => {
+    const start = new Date(c.created_at).getTime();
+    const end = new Date(c.updated_at).getTime();
+    return sum + (end - start);
+  }, 0);
+  const avgSessionMinutes = totalConversations > 0 
+    ? Math.round(totalSessionTime / totalConversations / 1000 / 60) 
+    : 0;
 
   /* ── per-chatbot stats ── */
   const statsMap: Record<string, {
@@ -90,10 +100,11 @@ export default async function AnalyticsPage() {
       </div>
 
       {/* ── Top stat cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
           { label: "Conversations", value: totalConversations, sub: `${totalOpen} open`, icon: MessageSquare, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100" },
           { label: "Total Messages", value: totalMessages, sub: `~${avgMsgsPerConv} per chat`, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100" },
+          { label: "Avg Session", value: `${avgSessionMinutes}m`, sub: totalConversations > 0 ? "average length" : "no data", icon: Clock, color: "text-purple-600", bg: "bg-purple-50", border: "border-purple-100" },
           { label: "Escalated", value: totalEscalated, sub: `${escalationRate}% rate`, icon: AlertTriangle, color: "text-red-500", bg: "bg-red-50", border: "border-red-100" },
           { label: "Resolved", value: totalResolved, sub: `${resolutionRate}% rate`, icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50", border: "border-green-100" },
         ].map((s) => (

@@ -18,12 +18,12 @@ const MODELS = [
   "anthropic/claude-3-haiku",
 ];
 
-async function callOpenRouter(
+async function callOpenRouterStreaming(
   key: string,
   model: string,
   apiMessages: { role: string; content: string }[],
   appUrl: string
-): Promise<{ text: string; status: number; raw: string }> {
+): Promise<ReadableStream> {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -36,19 +36,16 @@ async function callOpenRouter(
       model,
       messages: apiMessages,
       max_tokens: 1024,
-      stream: false,
+      stream: true,  // Enable streaming
       temperature: 0.7,
     }),
   });
 
-  const raw = await res.text();
-  let text = "";
-  try {
-    const data = JSON.parse(raw);
-    text = data.choices?.[0]?.message?.content?.trim() ?? "";
-  } catch { /* parse failed */ }
+  if (!res.ok || !res.body) {
+    throw new Error(`Model ${model} failed with status ${res.status}`);
+  }
 
-  return { text, status: res.status, raw: raw.slice(0, 500) };
+  return res.body;
 }
 
 export async function POST(req: NextRequest) {
@@ -96,79 +93,195 @@ export async function POST(req: NextRequest) {
       })),
     ];
 
-    // Try each model until one returns a non-empty response
-    let replyText = "";
-    let lastRaw = "";
-    for (const model of MODELS) {
-      try {
-        const result = await callOpenRouter(key, model, apiMessages, appUrl);
-        lastRaw = result.raw;
-        if (result.text) {
-          replyText = result.text;
-          break;
-        }
-        console.warn(`Model ${model} returned empty. Status: ${result.status}. Raw: ${result.raw.slice(0, 200)}`);
-      } catch (e) {
-        console.warn(`Model ${model} threw:`, e);
-      }
-    }
+    // Try streaming with first model
+    let streamBody: ReadableStream | null = null;
+    let fullText = "";
 
-    if (!replyText) {
-      console.error("All models returned empty. Last raw:", lastRaw);
-      // Fallback so user always gets a response
-      replyText = "I'm having trouble connecting right now. Please try again in a moment.";
-    }
-
-    // Persist assistant message
-    if (conversationId) {
-      try {
-        await supabase.from("messages").insert({
-          conversation_id: conversationId,
-          role: "assistant",
-          content: replyText,
-        });
-      } catch (e) { console.error("Persist error:", e); }
-
-      // Escalation check
-      const keyword = (chatbot.escalation_keyword ?? "ESCALATE").toUpperCase();
-      if (replyText.toUpperCase().includes(keyword)) {
+    try {
+      streamBody = await callOpenRouterStreaming(key, MODELS[0], apiMessages, appUrl);
+      
+      // Create a transform stream to capture the full text while streaming
+      const { readable, writable } = new TransformStream();
+      const writer = writable.getWriter();
+      const textDecoder = new TextDecoder();
+      
+      // Process the stream
+      (async () => {
         try {
-          await supabase
-            .from("conversations")
-            .update({ status: "escalated" })
-            .eq("id", conversationId);
-
-          const { data: conv } = await supabase
-            .from("conversations")
-            .select("chatbot_id")
-            .eq("id", conversationId)
-            .single();
-
-          if (conv) {
-            const { data: bot } = await supabase
-              .from("chatbots")
-              .select("org_id")
-              .eq("id", conv.chatbot_id)
-              .single();
-
-            if (bot) {
-              await supabase.from("notifications").insert({
-                org_id: bot.org_id,
-                conversation_id: conversationId,
-                type: "escalated",
-                message: "A conversation has been escalated and needs human attention.",
-              });
+          const reader = streamBody!.getReader();
+          let buffer = "";
+          
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            buffer += textDecoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+            
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                const data = line.slice(6);
+                if (data === "[DONE]") continue;
+                
+                try {
+                  const json = JSON.parse(data);
+                  const content = json.choices?.[0]?.delta?.content || "";
+                  if (content) {
+                    fullText += content;
+                    await writer.write(new TextEncoder().encode(content));
+                  }
+                } catch {
+                  // ignore parse errors
+                }
+              }
             }
           }
-        } catch (e) { console.error("Escalation error:", e); }
+          
+          // Save to database after streaming completes
+          if (conversationId && fullText) {
+            await supabase.from("messages").insert({
+              conversation_id: conversationId,
+              role: "assistant",
+              content: fullText,
+            });
+            
+            // Check for escalation
+            const keyword = (chatbot.escalation_keyword ?? "ESCALATE").toUpperCase();
+            if (fullText.toUpperCase().includes(keyword)) {
+              await supabase
+                .from("conversations")
+                .update({ status: "escalated" })
+                .eq("id", conversationId);
+
+              const { data: conv } = await supabase
+                .from("conversations")
+                .select("chatbot_id")
+                .eq("id", conversationId)
+                .single();
+
+              if (conv) {
+                const { data: bot } = await supabase
+                  .from("chatbots")
+                  .select("org_id")
+                  .eq("id", conv.chatbot_id)
+                  .single();
+
+                if (bot) {
+                  await supabase.from("notifications").insert({
+                    org_id: bot.org_id,
+                    conversation_id: conversationId,
+                    type: "escalated",
+                    message: "A conversation has been escalated and needs human attention.",
+                  });
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Streaming error:", e);
+        } finally {
+          await writer.close();
+        }
+      })();
+
+      const headers = new Headers(CORS as Record<string, string>);
+      headers.set("Content-Type", "text/event-stream");
+      headers.set("Cache-Control", "no-cache, no-store");
+      headers.set("Connection", "keep-alive");
+
+      return new Response(readable, { status: 200, headers });
+      
+    } catch (streamError) {
+      console.warn("Streaming failed, falling back to non-streaming:", streamError);
+      
+      // Fallback to non-streaming
+      let replyText = "";
+      for (const model of MODELS) {
+        try {
+          const nonStreamRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${key}`,
+              "Content-Type": "application/json",
+              "HTTP-Referer": appUrl,
+              "X-Title": "MJ.TALK Support",
+            },
+            body: JSON.stringify({
+              model,
+              messages: apiMessages,
+              max_tokens: 1024,
+              stream: false,
+              temperature: 0.7,
+            }),
+          });
+
+          const raw = await nonStreamRes.text();
+          try {
+            const data = JSON.parse(raw);
+            replyText = data.choices?.[0]?.message?.content?.trim() ?? "";
+            if (replyText) break;
+          } catch { /* parse failed */ }
+        } catch (e) {
+          console.warn(`Fallback model ${model} threw:`, e);
+        }
       }
+
+      if (!replyText) {
+        replyText = "I'm having trouble connecting right now. Please try again in a moment.";
+      }
+
+      // Persist fallback message
+      if (conversationId) {
+        try {
+          await supabase.from("messages").insert({
+            conversation_id: conversationId,
+            role: "assistant",
+            content: replyText,
+          });
+        } catch (e) { console.error("Persist error:", e); }
+
+        // Escalation check
+        const keyword = (chatbot.escalation_keyword ?? "ESCALATE").toUpperCase();
+        if (replyText.toUpperCase().includes(keyword)) {
+          try {
+            await supabase
+              .from("conversations")
+              .update({ status: "escalated" })
+              .eq("id", conversationId);
+
+            const { data: conv } = await supabase
+              .from("conversations")
+              .select("chatbot_id")
+              .eq("id", conversationId)
+              .single();
+
+            if (conv) {
+              const { data: bot } = await supabase
+                .from("chatbots")
+                .select("org_id")
+                .eq("id", conv.chatbot_id)
+                .single();
+
+              if (bot) {
+                await supabase.from("notifications").insert({
+                  org_id: bot.org_id,
+                  conversation_id: conversationId,
+                  type: "escalated",
+                  message: "A conversation has been escalated and needs human attention.",
+                });
+              }
+            }
+          } catch (e) { console.error("Escalation error:", e); }
+        }
+      }
+
+      const headers = new Headers(CORS as Record<string, string>);
+      headers.set("Content-Type", "text/plain; charset=utf-8");
+      headers.set("Cache-Control", "no-cache, no-store");
+
+      return new Response(replyText, { status: 200, headers });
     }
-
-    const headers = new Headers(CORS as Record<string, string>);
-    headers.set("Content-Type", "text/plain; charset=utf-8");
-    headers.set("Cache-Control", "no-cache, no-store");
-
-    return new Response(replyText, { status: 200, headers });
 
   } catch (error) {
     console.error("Chat API fatal error:", error);
