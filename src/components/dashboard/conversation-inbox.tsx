@@ -931,7 +931,6 @@ export function ConversationInbox({
           </div>
         )}
       </div>
-    </div>
 
       {/* ══════════════════════════════════════════════
           NEW CONVERSATION MODAL
