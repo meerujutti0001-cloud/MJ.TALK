@@ -11,7 +11,6 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { formatRelativeTime, getInitials } from "@/lib/utils";
 import type { TeamMember } from "@/types";
@@ -73,13 +72,21 @@ export function TeamManagement({ orgId, orgName, members: initialMembers, isOwne
 
   const handleRemove = async (memberId: string) => {
     setDeletingId(memberId);
-    const supabase = createClient(); // inside handler — safe
-    const { error } = await supabase.from("team_members").delete().eq("id", memberId);
-    if (error) {
-      toast({ title: "Failed to remove member", variant: "destructive" });
-    } else {
-      setMembers((prev) => prev.filter((m) => m.id !== memberId));
-      toast({ title: "Member removed" });
+    try {
+      const res = await fetch("/api/team/remove", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: "Failed to remove member", description: data.error ?? "Unknown error", variant: "destructive" });
+      } else {
+        setMembers((prev) => prev.filter((m) => m.id !== memberId));
+        toast({ title: "Member removed" });
+      }
+    } catch {
+      toast({ title: "Failed to remove member", description: "Network error", variant: "destructive" });
     }
     setDeletingId(null);
   };
