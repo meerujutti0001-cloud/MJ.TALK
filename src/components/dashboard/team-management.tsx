@@ -35,24 +35,25 @@ export function TeamManagement({ orgId, orgName, members: initialMembers, isOwne
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const supabase = createClient(); // inside handler — safe
 
-    const { data, error } = await supabase
-      .from("team_members")
-      .insert({ org_id: orgId, email: inviteEmail.trim(), role: inviteRole })
-      .select()
-      .single();
+    const res = await fetch("/api/team/invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orgId, email: inviteEmail.trim(), role: inviteRole }),
+    });
 
-    if (error) {
-      toast({ title: "Failed to create invite", description: error.message, variant: "destructive" });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      toast({ title: "Failed to create invite", description: data.error ?? "Unknown error", variant: "destructive" });
       setLoading(false);
       return;
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
-    const link = `${appUrl}/accept-invite?id=${data.id}&org=${encodeURIComponent(orgName)}`;
+    const link = `${appUrl}/accept-invite?id=${data.member.id}&org=${encodeURIComponent(orgName)}`;
     setInviteLink(link);
-    setMembers((prev) => [data as TeamMember, ...prev]);
+    setMembers((prev) => [data.member as TeamMember, ...prev]);
     setLoading(false);
   };
 
