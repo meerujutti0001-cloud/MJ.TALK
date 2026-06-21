@@ -20,6 +20,7 @@ import { formatRelativeTime, formatDateTime, formatTime, getInitials, cn } from 
 import { toast } from "@/hooks/use-toast";
 import type { Conversation, Message, ConversationNote } from "@/types";
 import { useNotificationContext } from "@/components/dashboard/realtime-notification-provider";
+import { useTypingIndicator } from "@/hooks/use-typing-indicator";
 
 /* ─── types ─── */
 interface ConversationInboxProps {
@@ -105,6 +106,15 @@ export function ConversationInbox({
   const [savingNote, setSavingNote] = useState(false);
   const [assigning, setAssigning] = useState(false);
 
+  // Phase 3: admin typing indicator (show to customer; watch customer typing)
+  const [visitorIsTyping, setVisitorIsTyping] = useState(false);
+  const { onKeystroke: adminTypingKeystroke, onSend: adminTypingSend } = useTypingIndicator({
+    conversationId: selected?.id ?? null,
+    selfRole: "admin",
+    watchRole: "user",
+    onRemoteTyping: setVisitorIsTyping,
+  });
+
   // Realtime notification context (to decrement badge when chat is opened)
   const { decrementUnread } = useNotificationContext();
 
@@ -185,6 +195,7 @@ export function ConversationInbox({
     setSelected(conv);
     setMessages([]);
     setLoadingMessages(true);
+    setVisitorIsTyping(false); // reset on new conversation
 
     const supabase = getSupabase();
     const { data } = await supabase
@@ -224,6 +235,7 @@ export function ConversationInbox({
   const sendAdminReply = async () => {
     if (!replyText.trim() || !selected) return;
     setSending(true);
+    adminTypingSend(); // stop typing indicator
 
     const res = await fetch("/api/admin/reply", {
       method: "POST",
@@ -874,6 +886,21 @@ export function ConversationInbox({
                   )}
                 </ScrollArea>
 
+                {/* Visitor typing indicator */}
+                {visitorIsTyping && (
+                  <div className="mx-4 mb-1 flex items-center gap-2 text-xs text-slate-400">
+                    <div className="flex gap-0.5 items-center">
+                      {[0, 1, 2].map((i) => (
+                        <div
+                          key={i}
+                          className="w-1.5 h-1.5 rounded-full bg-slate-300 typing-dot"
+                        />
+                      ))}
+                    </div>
+                    <span>Visitor is typing…</span>
+                  </div>
+                )}
+
                 {/* Escalation banner */}
                 {selected.status === "escalated" && (
                   <div className="mx-4 mb-2 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-sm text-red-700">
@@ -926,7 +953,7 @@ export function ConversationInbox({
                       <textarea
                         ref={replyRef}
                         value={replyText}
-                        onChange={handleReplyChange}
+                        onChange={(e) => { handleReplyChange(e); adminTypingKeystroke(); }}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && !e.shiftKey) {
                             e.preventDefault();

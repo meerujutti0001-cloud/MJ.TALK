@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { cn, generateSessionId } from "@/lib/utils";
 import type { ChatMessage, PreChatFormData } from "@/types";
+import { useTypingIndicator } from "@/hooks/use-typing-indicator";
 
 /* ─── types ─── */
 export interface WidgetConfig {
@@ -93,10 +94,20 @@ export function WidgetApp({ config }: WidgetAppProps) {
   const [escalationPending, setEscalationPending] = useState(false);
   const [error, setError]             = useState<string | null>(null);
   const [hasNewMessage, setHasNewMessage] = useState(false);
+  // Phase 3: agent typing indicator visible in widget
+  const [agentIsTyping, setAgentIsTyping] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef       = useRef<HTMLTextAreaElement>(null);
   const abortRef       = useRef<AbortController | null>(null);
+
+  // Phase 3: typing indicator hook
+  const { onKeystroke: typingKeystroke, onSend: typingSend } = useTypingIndicator({
+    conversationId,
+    selfRole: "user",
+    watchRole: "admin",
+    onRemoteTyping: setAgentIsTyping,
+  });
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -186,6 +197,7 @@ export function WidgetApp({ config }: WidgetAppProps) {
     setInput(e.target.value);
     e.target.style.height = "auto";
     e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
+    typingKeystroke();
   };
 
   /* ── Init conversation ── */
@@ -346,6 +358,7 @@ export function WidgetApp({ config }: WidgetAppProps) {
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     if (inputRef.current) inputRef.current.style.height = "auto";
+    typingSend(); // stop typing indicator immediately
     try {
       let convId = conversationId;
       if (!convId) convId = await initConversation();
@@ -545,11 +558,13 @@ export function WidgetApp({ config }: WidgetAppProps) {
                   );
                 })}
 
-                {/* Typing indicator */}
-                {isTyping && (
+                {/* AI/agent typing indicator */}
+                {(isTyping || agentIsTyping) && (
                   <div className="flex gap-2.5 justify-start">
                     <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: lightColor }}>
-                      <MessageCircle className="w-3.5 h-3.5" style={{ color }} />
+                      {agentIsTyping
+                        ? <User className="w-3.5 h-3.5" style={{ color }} />
+                        : <MessageCircle className="w-3.5 h-3.5" style={{ color }} />}
                     </div>
                     <div className="bg-white border border-slate-100 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
                       <div className="flex gap-1 items-center h-4">
@@ -558,6 +573,9 @@ export function WidgetApp({ config }: WidgetAppProps) {
                         ))}
                       </div>
                     </div>
+                    {agentIsTyping && (
+                      <span className="text-xs text-slate-400 self-end mb-1">Agent typing…</span>
+                    )}
                   </div>
                 )}
 
