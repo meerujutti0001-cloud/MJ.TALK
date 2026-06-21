@@ -10,6 +10,7 @@ import {
 import { cn, getInitials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
+import { useNotificationContext } from "@/components/dashboard/realtime-notification-provider";
 
 interface DashboardShellProps {
   children: React.ReactNode;
@@ -51,9 +52,12 @@ interface SidebarContentProps {
   onSignOut: () => void;
 }
 
-function SidebarContent({ org, user, unreadCount, pathname, onClose, onSignOut }: SidebarContentProps) {
+function SidebarContent({ org, user, unreadCount: _unreadCount, pathname, onClose, onSignOut }: SidebarContentProps) {
   const isActive = (item: typeof navItems[0]) =>
     item.exact ? pathname === item.href : pathname.startsWith(item.href);
+
+  // Live badge count from realtime provider
+  const { unreadCount } = useNotificationContext();
 
   // Super admin email
   const SUPER_ADMIN_EMAIL = "meerujutti0.001@gmail.com";
@@ -172,10 +176,11 @@ function SidebarContent({ org, user, unreadCount, pathname, onClose, onSignOut }
   );
 }
 
-export function DashboardShell({ children, user, org, unreadCount }: DashboardShellProps) {
+export function DashboardShell({ children, user, org, unreadCount: _initialUnread }: DashboardShellProps) {
   const pathname = usePathname();
   const router   = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { unreadCount } = useNotificationContext();
 
   const handleSignOut = async () => {
     const supabase = createClient();

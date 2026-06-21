@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   MessageCircle, X, Send, User, Smile, Paperclip,
-  RotateCcw, Volume2, VolumeX, Minimize2,
+  RotateCcw, Volume2, VolumeX, Minimize2, UserCheck,
 } from "lucide-react";
 import { cn, generateSessionId } from "@/lib/utils";
 import type { ChatMessage, PreChatFormData } from "@/types";
@@ -90,6 +90,7 @@ export function WidgetApp({ config }: WidgetAppProps) {
   const [showPreChat, setShowPreChat] = useState(config.pre_chat_form_enabled);
   const [preChatData, setPreChatData] = useState<PreChatFormData>({ name: "", email: "" });
   const [isEscalated, setIsEscalated] = useState(false);
+  const [escalationPending, setEscalationPending] = useState(false);
   const [error, setError]             = useState<string | null>(null);
   const [hasNewMessage, setHasNewMessage] = useState(false);
 
@@ -115,6 +116,8 @@ export function WidgetApp({ config }: WidgetAppProps) {
         setShowPreChat(false);
       } catch { /* ignore */ }
     }
+    const storedEscalated = sessionStorage.getItem(`esc_${config.id}`);
+    if (storedEscalated === "1") setIsEscalated(true);
   }, [config.id]);
 
   /* ── Supabase Realtime — admin messages ── */
@@ -157,6 +160,11 @@ export function WidgetApp({ config }: WidgetAppProps) {
   useEffect(() => {
     if (messages.length > 0) sessionStorage.setItem(`msgs_${config.id}`, JSON.stringify(messages));
   }, [messages, config.id]);
+
+  /* ── Persist escalation state ── */
+  useEffect(() => {
+    if (isEscalated) sessionStorage.setItem(`esc_${config.id}`, "1");
+  }, [isEscalated, config.id]);
 
   /* ── postMessage API ── */
   useEffect(() => {
@@ -365,11 +373,55 @@ export function WidgetApp({ config }: WidgetAppProps) {
   const handleReset = () => {
     abortRef.current?.abort();
     setMessages([]); setConversationId(null); setIsEscalated(false);
+    setEscalationPending(false);
     setError(null); setInput(""); setShowPreChat(config.pre_chat_form_enabled);
     sessionStorage.removeItem(`conv_${config.id}`);
     sessionStorage.removeItem(`msgs_${config.id}`);
+    sessionStorage.removeItem(`esc_${config.id}`);
     if (!config.pre_chat_form_enabled) {
       setMessages([{ id: "welcome", role: "assistant", content: `Hi! 👋 I'm ${config.name}. How can I help you today?`, timestamp: new Date() }]);
+    }
+  };
+
+  /* ── Request human agent ── */
+  const handleRequestHuman = async () => {
+    if (escalationPending || isEscalated) return;
+    setEscalationPending(true);
+    setError(null);
+
+    try {
+      let convId = conversationId;
+      if (!convId) convId = await initConversation();
+
+      const api = getApiBase();
+      const res = await fetch(`${api}/api/chat/escalate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chatbotId: config.id,
+          sessionId,
+          conversationId: convId,
+          visitorName: preChatData.name || null,
+          visitorEmail: preChatData.email || null,
+          pageUrl: typeof window !== "undefined" ? window.location.href : undefined,
+          browserInfo: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 100) : undefined,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to reach support");
+
+      const data = await res.json();
+      if (data.conversationId) {
+        setConversationId(data.conversationId);
+        sessionStorage.setItem(`conv_${config.id}`, data.conversationId);
+      }
+
+      setIsEscalated(true);
+      // System message added by the API is picked up via Realtime — no need to push manually
+    } catch {
+      setError("Could not connect to support. Please try again.");
+    } finally {
+      setEscalationPending(false);
     }
   };
 
@@ -400,7 +452,9 @@ export function WidgetApp({ config }: WidgetAppProps) {
               <p className="text-white font-semibold text-sm leading-tight">{config.name}</p>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
-                <span className="text-white/80 text-xs">{isEscalated ? "Human agent joining…" : "Online · replies instantly"}</span>
+                <span className="text-white/80 text-xs">
+                  {escalationPending ? "Connecting to agent…" : isEscalated ? "Human agent joining…" : "Online · replies instantly"}
+                </span>
               </div>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
@@ -516,7 +570,30 @@ export function WidgetApp({ config }: WidgetAppProps) {
 
                 {isEscalated && (
                   <div className="text-center text-xs rounded-xl px-3 py-2.5 border" style={{ background: `${color}18`, borderColor: `${color}40`, color }}>
-                    🙋 A human agent will be with you shortly.
+                    ✅ A human agent has been notified and will join shortly.
+                  </div>
+                )}
+
+                {!isEscalated && messages.length > 0 && (
+                  <div className="flex justify-center">
+                    <button
+                      onClick={handleRequestHuman}
+                      disabled={escalationPending}
+                      className="flex items-center gap-1.5 text-xs px-3.5 py-1.5 rounded-full border transition-all hover:opacity-80 active:scale-95 disabled:opacity-50"
+                      style={{ borderColor: `${color}50`, color, background: `${color}10` }}
+                    >
+                      {escalationPending ? (
+                        <>
+                          <span className="w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                          Connecting…
+                        </>
+                      ) : (
+                        <>
+                          <UserCheck className="w-3 h-3" />
+                          Talk to a Human Agent
+                        </>
+                      )}
+                    </button>
                   </div>
                 )}
 

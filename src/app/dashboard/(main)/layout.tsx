@@ -4,6 +4,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { FloatingWidget } from "@/components/floating-widget";
+import { RealtimeNotificationProvider } from "@/components/dashboard/realtime-notification-provider";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const user = await requireAuth();
@@ -59,10 +60,14 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     .eq("read", false);
 
   return (
-    <DashboardShell user={user} org={org} unreadCount={unreadCount ?? 0}>
-      {children}
-      {/* User's own org chatbot — only visible inside the dashboard */}
-      {orgChatbot?.id && <FloatingWidget chatbotId={orgChatbot.id} />}
-    </DashboardShell>
+    <RealtimeNotificationProvider
+      orgId={org.id}
+      initialUnreadCount={unreadCount ?? 0}
+    >
+      <DashboardShell user={user} org={org} unreadCount={unreadCount ?? 0}>
+        {children}
+        {orgChatbot?.id && <FloatingWidget chatbotId={orgChatbot.id} />}
+      </DashboardShell>
+    </RealtimeNotificationProvider>
   );
 }

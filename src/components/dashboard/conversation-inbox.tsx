@@ -6,12 +6,11 @@ import Link from "next/link";
 import {
   Search, MessageSquare, User, Clock, Globe, AlertTriangle,
   CheckCircle2, Send, Bot, ChevronDown, Filter, RefreshCw,
-  Circle, MoreVertical, Inbox, Tag, ArrowLeft, Sparkles,
+  Circle, Inbox, Tag, ArrowLeft, Sparkles,
   X, Hash, Phone, Mail, Maximize2, Flag, Plus, UserPlus,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,6 +18,7 @@ import { createClient } from "@/lib/supabase/client";
 import { formatRelativeTime, formatDateTime, formatTime, getInitials, cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import type { Conversation, Message } from "@/types";
+import { useNotificationContext } from "@/components/dashboard/realtime-notification-provider";
 
 /* ─── types ─── */
 interface ConversationInboxProps {
@@ -96,6 +96,9 @@ export function ConversationInbox({
     visitorEmail: "",
     initialMessage: ""
   });
+
+  // Realtime notification context (to decrement badge when chat is opened)
+  const { decrementUnread } = useNotificationContext();
 
   /* ── scroll ── */
   const scrollToBottom = useCallback(() => {
@@ -184,6 +187,18 @@ export function ConversationInbox({
 
     setMessages(data ?? []);
     setLoadingMessages(false);
+
+    // Mark notifications as read for this conversation
+    fetch("/api/conversations/mark-seen", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversationId: conv.id }),
+    }).then((res) => {
+      if (res.ok) {
+        // Decrement badge by approximate unread — will reconcile on next server render
+        decrementUnread(1);
+      }
+    }).catch(() => {});
 
     const params = new URLSearchParams(window.location.search);
     params.set("id", conv.id);
@@ -326,11 +341,25 @@ export function ConversationInbox({
       );
     }
     return true;
+  }).sort((a, b) => {
+    // Escalated conversations always appear first within each filter
+    if (a.status === "escalated" && b.status !== "escalated") return -1;
+    if (b.status === "escalated" && a.status !== "escalated") return 1;
+    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
   });
 
   /* ── Stats badges ── */
-  const openCount = conversations.filter((c) => c.status === "open").length;
+  const openCount      = conversations.filter((c) => c.status === "open").length;
   const escalatedCount = conversations.filter((c) => c.status === "escalated").length;
+  const unresolvedCount = conversations.filter((c) => c.status !== "resolved").length;
+
+  /* ── Quick-filter tabs ── */
+  const FILTER_TABS = [
+    { id: "all",       label: "All",       count: conversations.length,                                        urgent: false },
+    { id: "open",      label: "Open",      count: openCount,                                                   urgent: false },
+    { id: "escalated", label: "Escalated", count: escalatedCount,                                              urgent: true  },
+    { id: "resolved",  label: "Resolved",  count: conversations.filter((c) => c.status === "resolved").length, urgent: false },
+  ];
 
   return (
     <div className="flex h-full bg-white overflow-hidden">
@@ -344,11 +373,16 @@ export function ConversationInbox({
       )}>
 
         {/* Header */}
-        <div className="px-4 pt-4 pb-3 border-b border-slate-100">
+        <div className="px-4 pt-4 pb-0 border-b border-slate-100">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <Inbox className="w-4 h-4 text-emerald-600" />
               Inbox
+              {unresolvedCount > 0 && (
+                <span className="text-xs bg-emerald-100 text-emerald-700 font-semibold px-1.5 py-0.5 rounded-full">
+                  {unresolvedCount}
+                </span>
+              )}
             </h2>
             <div className="flex items-center gap-1.5">
               {/* New Conversation Button */}
@@ -360,22 +394,47 @@ export function ConversationInbox({
                 <Plus className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">New</span>
               </button>
-              
-              {escalatedCount > 0 && (
-                <span className="bg-red-100 text-red-700 text-xs font-semibold px-2 py-0.5 rounded-full">
-                  {escalatedCount} escalated
-                </span>
-              )}
-              {openCount > 0 && (
-                <span className="bg-emerald-100 text-emerald-700 text-xs font-semibold px-2 py-0.5 rounded-full">
-                  {openCount} open
-                </span>
-              )}
             </div>
           </div>
 
+          {/* Filter tabs */}
+          <div className="flex gap-0 -mx-4 px-2">
+            {FILTER_TABS.map((tab) => {
+              const isActive = statusFilter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => { setStatusFilter(tab.id); updateFilters({ status: tab.id }); }}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-1 py-2 text-xs font-medium border-b-2 transition-colors",
+                    isActive
+                      ? tab.urgent
+                        ? "border-red-500 text-red-600"
+                        : "border-emerald-500 text-emerald-700"
+                      : "border-transparent text-slate-400 hover:text-slate-600"
+                  )}
+                >
+                  {tab.label}
+                  {tab.count > 0 && (
+                    <span className={cn(
+                      "text-xs px-1.5 py-0.5 rounded-full font-semibold",
+                      isActive && tab.urgent ? "bg-red-100 text-red-600" :
+                      isActive ? "bg-emerald-100 text-emerald-700" :
+                      "bg-slate-100 text-slate-400"
+                    )}>
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Search + chatbot filter */}
+        <div className="px-4 py-2.5 border-b border-slate-100 space-y-2">
           {/* Search */}
-          <div className="relative mb-2">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <Input
               value={search}
@@ -393,41 +452,24 @@ export function ConversationInbox({
             )}
           </div>
 
-          {/* Filters row */}
-          <div className="flex gap-1.5">
+          {/* Chatbot filter */}
+          {chatbots.length > 1 && (
             <Select
-              value={statusFilter}
-              onValueChange={(v) => { setStatusFilter(v); updateFilters({ status: v }); }}
+              value={chatbotFilter}
+              onValueChange={(v) => { setChatbotFilter(v); updateFilters({ chatbot: v }); }}
             >
-              <SelectTrigger className="h-7 text-xs flex-1 border-slate-200">
+              <SelectTrigger className="h-7 text-xs border-slate-200 w-full">
                 <Filter className="w-3 h-3 mr-1 text-slate-400" />
-                <SelectValue />
+                <SelectValue placeholder="All Bots" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="open">Open</SelectItem>
-                <SelectItem value="escalated">Escalated</SelectItem>
-                <SelectItem value="resolved">Resolved</SelectItem>
+                <SelectItem value="all">All Bots</SelectItem>
+                {chatbots.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
-
-            {chatbots.length > 1 && (
-              <Select
-                value={chatbotFilter}
-                onValueChange={(v) => { setChatbotFilter(v); updateFilters({ chatbot: v }); }}
-              >
-                <SelectTrigger className="h-7 text-xs flex-1 border-slate-200">
-                  <SelectValue placeholder="All Bots" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Bots</SelectItem>
-                  {chatbots.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
+          )}
         </div>
 
         {/* Conversation list */}
