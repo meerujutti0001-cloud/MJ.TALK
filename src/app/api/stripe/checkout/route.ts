@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { stripe, PLANS } from "@/lib/stripe";
+import { getStripe, PLANS, isStripeConfigured } from "@/lib/stripe";
 
 export async function POST(req: NextRequest) {
   try {
+    // Check Stripe is configured before doing anything
+    if (!isStripeConfigured()) {
+      return NextResponse.json(
+        {
+          error: "stripe_not_configured",
+          message: "Online payment is not yet enabled. Please contact support to upgrade your plan.",
+        },
+        { status: 503 }
+      );
+    }
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -21,13 +32,17 @@ export async function POST(req: NextRequest) {
     const planConfig = PLANS.premium;
     if (!planConfig.priceId) {
       return NextResponse.json(
-        { error: "Stripe price ID is not configured. Add STRIPE_PREMIUM_PRICE_ID to your environment variables." },
-        { status: 500 }
+        {
+          error: "stripe_not_configured",
+          message: "Payment is not fully configured yet. Please contact support to complete your upgrade.",
+        },
+        { status: 503 }
       );
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://mj-talk.vercel.app";
     const service = createServiceClient();
+    const stripe = getStripe();
 
     // Get or create Stripe customer for this user
     const { data: org } = await service
@@ -42,24 +57,14 @@ export async function POST(req: NextRequest) {
       const customer = await stripe.customers.create({
         email: user.email!,
         name: org?.name ?? user.email!,
-        metadata: {
-          user_id: user.id,
-          org_id: org?.id ?? "",
-        },
+        metadata: { user_id: user.id, org_id: org?.id ?? "" },
       });
       customerId = customer.id;
-
-      // Save customer ID to org
       if (org?.id) {
-        await service
-          .from("organizations")
-          .update({ stripe_customer_id: customerId })
-          .eq("id", org.id);
+        await service.from("organizations").update({ stripe_customer_id: customerId }).eq("id", org.id);
       }
     }
 
-    // Determine price ID based on billing cycle
-    // For yearly we apply a coupon / use a separate yearly price if set
     const priceId =
       billingCycle === "yearly" && process.env.STRIPE_PREMIUM_YEARLY_PRICE_ID
         ? process.env.STRIPE_PREMIUM_YEARLY_PRICE_ID
@@ -69,12 +74,7 @@ export async function POST(req: NextRequest) {
       customer: customerId,
       mode: "subscription",
       payment_method_types: ["card"],
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ],
+      line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${appUrl}/purchase/confirmation?session_id={CHECKOUT_SESSION_ID}&plan=premium`,
       cancel_url: `${appUrl}/purchase/premium?cancelled=1`,
       metadata: {
@@ -84,11 +84,7 @@ export async function POST(req: NextRequest) {
         billing_cycle: billingCycle,
       },
       subscription_data: {
-        metadata: {
-          user_id: user.id,
-          org_id: org?.id ?? "",
-          plan: "premium",
-        },
+        metadata: { user_id: user.id, org_id: org?.id ?? "", plan: "premium" },
       },
       allow_promotion_codes: true,
     });
@@ -97,6 +93,10 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("[stripe/checkout] error:", err);
     const message = err instanceof Error ? err.message : "Internal server error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    // Don't expose internal Stripe error details to the client
+    const clientMessage = message.includes("STRIPE_SECRET_KEY")
+      ? "Payment is not configured yet. Please contact support."
+      : "Failed to create checkout session. Please try again.";
+    return NextResponse.json({ error: clientMessage }, { status: 500 });
   }
 }

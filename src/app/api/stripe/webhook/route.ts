@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { stripe } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 import { createServiceClient } from "@/lib/supabase/server";
 import type Stripe from "stripe";
 
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const rawBody = await req.text();
-    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+    event = getStripe().webhooks.constructEvent(rawBody, sig, webhookSecret);
   } catch (err) {
     console.error("[webhook] Signature verification failed:", err);
     return NextResponse.json({ error: "Webhook signature invalid" }, { status: 400 });
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
         if (!orgId) break;
 
         // Fetch subscription to get period end
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const subscription = await getStripe().subscriptions.retrieve(subscriptionId);
         const expiresAt = new Date(subscription.current_period_end * 1000).toISOString();
 
         await service
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
         const subId = (invoice as { subscription?: string }).subscription;
         if (!subId) break;
 
-        const subscription = await stripe.subscriptions.retrieve(subId);
+        const subscription = await getStripe().subscriptions.retrieve(subId);
         const orgId = subscription.metadata?.org_id;
         if (!orgId) break;
 

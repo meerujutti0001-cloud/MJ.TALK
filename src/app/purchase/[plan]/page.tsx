@@ -63,10 +63,22 @@ function PremiumCheckout({ plan }: { plan: "premium" }) {
         body: JSON.stringify({ plan, billingCycle }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Checkout failed");
+      if (!res.ok) {
+        // Handle "not configured" case specially
+        if (data.error === "stripe_not_configured" || res.status === 503) {
+          setError("Online payment is not yet active. Please contact support@mjtalk.com to upgrade your plan.");
+        } else if (!res.ok && data.error === "You must be signed in to purchase a plan") {
+          setError("Please sign in to your MJ.TALK account before purchasing.");
+        } else {
+          throw new Error(data.error ?? "Checkout failed");
+        }
+        setLoading(false);
+        return;
+      }
+      if (!data.url) throw new Error("No checkout URL received");
       window.location.href = data.url;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       setLoading(false);
     }
   };
