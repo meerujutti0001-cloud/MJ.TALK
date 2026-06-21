@@ -44,12 +44,24 @@ export async function POST(req: NextRequest) {
     const service = createServiceClient();
     const stripe = getStripe();
 
-    // Get or create Stripe customer for this user
-    const { data: org } = await service
-      .from("organizations")
-      .select("id, name, stripe_customer_id")
-      .eq("owner_id", user.id)
-      .maybeSingle();
+    // Get org — gracefully handle if stripe columns don't exist yet
+    let org: { id: string; name: string; stripe_customer_id?: string | null } | null = null;
+    try {
+      const { data } = await service
+        .from("organizations")
+        .select("id, name, stripe_customer_id")
+        .eq("owner_id", user.id)
+        .maybeSingle();
+      org = data;
+    } catch {
+      // stripe_customer_id column may not exist yet — fetch without it
+      const { data } = await service
+        .from("organizations")
+        .select("id, name")
+        .eq("owner_id", user.id)
+        .maybeSingle();
+      org = data;
+    }
 
     let customerId: string | undefined = org?.stripe_customer_id ?? undefined;
 
@@ -61,7 +73,10 @@ export async function POST(req: NextRequest) {
       });
       customerId = customer.id;
       if (org?.id) {
-        await service.from("organizations").update({ stripe_customer_id: customerId }).eq("id", org.id);
+        // Best-effort — column may not exist yet if migration 006 hasn't run
+        try {
+          await service.from("organizations").update({ stripe_customer_id: customerId }).eq("id", org.id);
+        } catch { /* ignore if column missing */ }
       }
     }
 
@@ -93,10 +108,33 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("[stripe/checkout] error:", err);
     const message = err instanceof Error ? err.message : "Internal server error";
-    // Don't expose internal Stripe error details to the client
-    const clientMessage = message.includes("STRIPE_SECRET_KEY")
-      ? "Payment is not configured yet. Please contact support."
-      : "Failed to create checkout session. Please try again.";
-    return NextResponse.json({ error: clientMessage }, { status: 500 });
+
+    // Surface specific Stripe errors clearly
+    if (message.includes("No such price")) {
+      return NextResponse.json(
+        { error: "Invalid Stripe Price ID. Check STRIPE_PREMIUM_PRICE_ID in your Vercel environment variables." },
+        { status: 500 }
+      );
+    }
+    if (message.includes("column") && message.includes("does not exist")) {
+      return NextResponse.json(
+        { error: "Database migration required. Run supabase/migrations/006_stripe_billing.sql in your Supabase SQL Editor." },
+        { status: 500 }
+      );
+    }
+    if (message.includes("STRIPE_SECRET_KEY")) {
+      return NextResponse.json(
+        { error: "Stripe secret key is not configured. Add STRIPE_SECRET_KEY to Vercel environment variables." },
+        { status: 500 }
+      );
+    }
+    if (message.includes("Invalid API Key") || message.includes("No such api")) {
+      return NextResponse.json(
+        { error: "Stripe API key is invalid. Check STRIPE_SECRET_KEY in your Vercel environment variables." },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

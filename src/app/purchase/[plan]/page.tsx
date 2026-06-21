@@ -67,10 +67,11 @@ function PremiumCheckout({ plan }: { plan: "premium" }) {
         // Handle "not configured" case specially
         if (data.error === "stripe_not_configured" || res.status === 503) {
           setError("Online payment is not yet active. Please contact support@mjtalk.com to upgrade your plan.");
-        } else if (!res.ok && data.error === "You must be signed in to purchase a plan") {
+        } else if (data.error === "You must be signed in to purchase a plan") {
           setError("Please sign in to your MJ.TALK account before purchasing.");
         } else {
-          throw new Error(data.error ?? "Checkout failed");
+          // Show actual error so configuration issues are visible
+          setError(data.error ?? "Checkout failed. Please try again.");
         }
         setLoading(false);
         return;
