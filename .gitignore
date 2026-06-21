@@ -1,5 +1,8 @@
 .next/
 node_modules/
 .turbo/
-.vercel
-.env*
+# Local environment files
+.env*.local
+
+# Production secrets
+.env.production

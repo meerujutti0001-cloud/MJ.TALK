@@ -41,11 +41,26 @@ export interface Conversation {
   browser_info: string | null;
   status: "open" | "escalated" | "resolved";
   message_count: number;
+  // Phase 2 new fields (present after migration, optional for backwards compat)
+  assigned_agent_id?: string | null;
+  priority?: "low" | "medium" | "high" | null;
+  source?: "widget" | "manual" | "ai_handoff" | "human_request" | null;
+  last_message_at?: string | null;
+  escalation_requested_at?: string | null;
   created_at: string;
   updated_at: string;
   // Joined
   chatbot?: Chatbot;
   messages?: Message[];
+}
+
+export interface ConversationNote {
+  id: string;
+  conversation_id: string;
+  agent_id: string;
+  note_text: string;
+  created_at: string;
+  agent?: { email: string; full_name: string | null };
 }
 
 export interface Message {
@@ -54,15 +69,18 @@ export interface Message {
   role: "user" | "assistant" | "admin";
   content: string;
   created_at: string;
+  is_seen?: boolean;
+  delivery_status?: "pending" | "sent" | "delivered" | "failed";
 }
 
 export interface Notification {
   id: string;
   org_id: string;
   conversation_id: string;
-  type: "escalated" | "flagged" | "idle";
+  type: "escalated" | "flagged" | "idle" | "new_message" | "new_chat" | "assigned" | "mention";
   message: string;
   read: boolean;
+  priority?: "low" | "normal" | "high" | "urgent" | null;
   created_at: string;
   // Joined
   conversation?: Conversation;

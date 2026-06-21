@@ -8,6 +8,7 @@ import {
   CheckCircle2, Send, Bot, ChevronDown, Filter, RefreshCw,
   Circle, Inbox, Tag, ArrowLeft, Sparkles,
   X, Hash, Phone, Mail, Maximize2, Flag, Plus, UserPlus,
+  UserCheck, StickyNote, BarChart2, Zap, Shield,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { createClient } from "@/lib/supabase/client";
 import { formatRelativeTime, formatDateTime, formatTime, getInitials, cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import type { Conversation, Message } from "@/types";
+import type { Conversation, Message, ConversationNote } from "@/types";
 import { useNotificationContext } from "@/components/dashboard/realtime-notification-provider";
 
 /* ─── types ─── */
@@ -96,6 +97,13 @@ export function ConversationInbox({
     visitorEmail: "",
     initialMessage: ""
   });
+
+  // Phase 2: notes, assignment, priority
+  const [infoTab, setInfoTab] = useState<"details" | "notes">("details");
+  const [notes, setNotes] = useState<ConversationNote[]>([]);
+  const [noteText, setNoteText] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const [assigning, setAssigning] = useState(false);
 
   // Realtime notification context (to decrement badge when chat is opened)
   const { decrementUnread } = useNotificationContext();
@@ -329,6 +337,73 @@ export function ConversationInbox({
     }
   };
 
+  /* ── Phase 2: load notes when info panel opens ── */
+  useEffect(() => {
+    if (!showInfo || !selected?.id || infoTab !== "notes") return;
+    fetch(`/api/conversations/notes?conversationId=${selected.id}`)
+      .then((r) => r.json())
+      .then((d) => setNotes(d.notes ?? []))
+      .catch(() => {});
+  }, [showInfo, infoTab, selected?.id]);
+
+  /* ── Phase 2: save internal note ── */
+  const handleSaveNote = async () => {
+    if (!noteText.trim() || !selected || savingNote) return;
+    setSavingNote(true);
+    try {
+      const res = await fetch("/api/conversations/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId: selected.id, noteText: noteText.trim() }),
+      });
+      if (!res.ok) throw new Error("Failed to save note");
+      const data = await res.json();
+      setNotes((prev) => [...prev, data.note]);
+      setNoteText("");
+      toast({ title: "Note saved" });
+    } catch {
+      toast({ title: "Could not save note", variant: "destructive" });
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  /* ── Phase 2: assign conversation to self ── */
+  const handleAssignToMe = async () => {
+    if (!selected || assigning) return;
+    setAssigning(true);
+    try {
+      const res = await fetch("/api/conversations/assign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId: selected.id }),
+        // agentId omitted → backend uses current user
+      });
+      if (!res.ok) throw new Error("Failed to assign");
+      toast({ title: "Conversation assigned to you" });
+      setSelected((prev) => prev ? { ...prev, assigned_agent_id: "me" } : prev);
+    } catch {
+      toast({ title: "Could not assign conversation", variant: "destructive" });
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  /* ── Phase 2: update priority ── */
+  const updatePriority = async (priority: "low" | "medium" | "high") => {
+    if (!selected) return;
+    const supabase = getSupabase();
+    const { error } = await supabase
+      .from("conversations")
+      .update({ priority })
+      .eq("id", selected.id);
+    if (!error) {
+      setSelected((prev) => prev ? { ...prev, priority } : prev);
+      setConversations((prev) => prev.map((c) => c.id === selected.id ? { ...c, priority } : c));
+      toast({ title: `Priority set to ${priority}` });
+    }
+  };
+
   /* ── Filtered conversations (client-side for search) ── */
   const filtered = conversations.filter((c) => {
     if (statusFilter !== "all" && c.status !== statusFilter) return false;
@@ -546,6 +621,12 @@ export function ConversationInbox({
                             {conv.visitor_email}
                           </p>
                         )}
+                        {/* Priority indicator */}
+                        {conv.priority === "high" && (
+                          <span className="mt-0.5 inline-flex items-center gap-0.5 text-xs text-red-500 font-semibold">
+                            <Zap className="w-2.5 h-2.5" />High
+                          </span>
+                        )}
                       </div>
                     </div>
                   </button>
@@ -594,11 +675,14 @@ export function ConversationInbox({
                 <p className="text-sm font-bold text-slate-900 leading-tight">
                   {selected.visitor_name ?? "Anonymous Visitor"}
                 </p>
-                <p className="text-xs text-slate-400 truncate">
-                  {selected.visitor_email
-                    ? <>{selected.visitor_email} · </>
-                    : null}
+                <p className="text-xs text-slate-400 truncate flex items-center gap-1.5 flex-wrap">
+                  {selected.visitor_email && <>{selected.visitor_email} · </>}
                   {(selected as Conversation & { chatbot?: { name: string } }).chatbot?.name}
+                  {selected.assigned_agent_id && (
+                    <span className="inline-flex items-center gap-0.5 text-emerald-600 font-medium">
+                      <UserCheck className="w-3 h-3" />Assigned
+                    </span>
+                  )}
                 </p>
               </div>
 
@@ -874,85 +958,233 @@ export function ConversationInbox({
                 </div>
               </div>
 
-              {/* ── Optional visitor info sidebar ── */}
+              {/* ── Visitor info / notes sidebar ── */}
               {showInfo && (
-                <div className="w-64 flex-shrink-0 border-l border-slate-100 bg-white overflow-y-auto">
-                  <div className="p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Visitor Info</p>
+                <div className="w-72 flex-shrink-0 border-l border-slate-100 bg-white flex flex-col overflow-hidden">
+
+                  {/* Sidebar header with tabs */}
+                  <div className="px-4 pt-4 pb-0 border-b border-slate-100 flex-shrink-0">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                        {infoTab === "details" ? "Visitor Info" : "Internal Notes"}
+                      </p>
                       <button onClick={() => setShowInfo(false)} className="text-slate-300 hover:text-slate-500">
                         <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
-
-                    {/* Avatar */}
-                    <div className="flex items-center gap-3 mb-4 p-3 bg-slate-50 rounded-xl">
-                      <Avatar className="h-10 w-10">
-                        <AvatarFallback
-                          className="text-white font-semibold"
-                          style={{ background: (selected as Conversation & { chatbot?: { widget_color?: string } }).chatbot?.widget_color ?? "#6366f1" }}
-                        >
-                          {getInitials(selected.visitor_name ?? "?")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">
-                          {selected.visitor_name ?? "Anonymous"}
-                        </p>
-                        <p className="text-xs text-slate-400">{selected.visitor_email ?? "No email"}</p>
-                      </div>
-                    </div>
-
-                    {/* Details list */}
-                    <div className="space-y-3">
-                      {[
-                        { icon: Mail, label: "Email", value: selected.visitor_email ?? "—" },
-                        { icon: Clock, label: "Started", value: formatDateTime(selected.created_at) },
-                        { icon: Hash, label: "Messages", value: String(selected.message_count) },
-                        { icon: Globe, label: "Page", value: selected.page_url ? decodeURIComponent(selected.page_url).slice(0, 40) : "—" },
-                        { icon: Phone, label: "Browser", value: selected.browser_info ? selected.browser_info.slice(0, 35) + "…" : "—" },
-                      ].map(({ icon: Icon, label, value }) => (
-                        <div key={label} className="flex gap-2.5">
-                          <div className="w-7 h-7 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <Icon className="w-3.5 h-3.5 text-slate-500" />
-                          </div>
-                          <div>
-                            <p className="text-xs text-slate-400">{label}</p>
-                            <p className="text-xs font-medium text-slate-700 break-all">{value}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Status quick-actions */}
-                    <div className="mt-5 space-y-2">
-                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Actions</p>
-                      {(["open", "escalated", "resolved"] as const).map((s) => (
+                    <div className="flex gap-0 -mx-4 px-2">
+                      {([
+                        { id: "details", label: "Details", icon: User },
+                        { id: "notes",   label: "Notes",   icon: StickyNote },
+                      ] as const).map((tab) => (
                         <button
-                          key={s}
-                          onClick={() => updateStatus(s)}
-                          disabled={selected.status === s}
+                          key={tab.id}
+                          onClick={() => setInfoTab(tab.id)}
                           className={cn(
-                            "w-full text-left text-xs px-3 py-2 rounded-xl border font-medium transition-colors",
-                            selected.status === s
-                              ? cn(STATUS[s].color, "cursor-default opacity-80")
-                              : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                            "flex-1 flex items-center justify-center gap-1 py-2 text-xs font-medium border-b-2 transition-colors",
+                            infoTab === tab.id
+                              ? "border-emerald-500 text-emerald-700"
+                              : "border-transparent text-slate-400 hover:text-slate-600"
                           )}
                         >
-                          <span className={cn("inline-block w-2 h-2 rounded-full mr-2", STATUS[s].dot)} />
-                          Mark as {STATUS[s].label}
+                          <tab.icon className="w-3 h-3" />
+                          {tab.label}
                         </button>
                       ))}
                     </div>
+                  </div>
 
-                    {/* View full conversation link */}
-                    <Link
-                      href={`/dashboard/conversations?id=${selected.id}`}
-                      className="flex items-center gap-1.5 mt-4 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
-                    >
-                      <Maximize2 className="w-3 h-3" />
-                      Open full view
-                    </Link>
+                  {/* Tab content */}
+                  <div className="flex-1 overflow-y-auto p-4">
+
+                    {infoTab === "details" && (
+                      <div className="space-y-4">
+                        {/* Avatar */}
+                        <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                          <Avatar className="h-10 w-10">
+                            <AvatarFallback
+                              className="text-white font-semibold"
+                              style={{ background: (selected as Conversation & { chatbot?: { widget_color?: string } }).chatbot?.widget_color ?? "#6366f1" }}
+                            >
+                              {getInitials(selected.visitor_name ?? "?")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-800 truncate">
+                              {selected.visitor_name ?? "Anonymous"}
+                            </p>
+                            <p className="text-xs text-slate-400 truncate">
+                              {selected.visitor_email ?? "No email"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Details list */}
+                        <div className="space-y-2.5">
+                          {[
+                            { icon: Mail,  label: "Email",   value: selected.visitor_email ?? "—" },
+                            { icon: Clock, label: "Started", value: formatDateTime(selected.created_at) },
+                            { icon: Hash,  label: "Messages",value: String(selected.message_count) },
+                            { icon: Globe, label: "Page",    value: selected.page_url ? decodeURIComponent(selected.page_url).slice(0, 38) : "—" },
+                            { icon: Phone, label: "Browser", value: selected.browser_info ? selected.browser_info.slice(0, 34) + "…" : "—" },
+                          ].map(({ icon: Icon, label, value }) => (
+                            <div key={label} className="flex gap-2.5">
+                              <div className="w-6 h-6 bg-slate-100 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <Icon className="w-3 h-3 text-slate-500" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs text-slate-400">{label}</p>
+                                <p className="text-xs font-medium text-slate-700 break-all">{value}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Priority */}
+                        <div>
+                          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                            <Zap className="w-3 h-3" />Priority
+                          </p>
+                          <div className="flex gap-1.5">
+                            {(["low", "medium", "high"] as const).map((p) => {
+                              const pCfg = {
+                                low:    { active: "bg-slate-200 text-slate-700",   inactive: "bg-slate-50 text-slate-400 hover:bg-slate-100" },
+                                medium: { active: "bg-amber-100 text-amber-700",   inactive: "bg-slate-50 text-slate-400 hover:bg-slate-100" },
+                                high:   { active: "bg-red-100 text-red-700",       inactive: "bg-slate-50 text-slate-400 hover:bg-slate-100" },
+                              };
+                              const isCurrent = (selected.priority ?? "medium") === p;
+                              return (
+                                <button
+                                  key={p}
+                                  onClick={() => updatePriority(p)}
+                                  className={cn(
+                                    "flex-1 text-xs py-1.5 rounded-lg font-semibold capitalize transition-colors border",
+                                    isCurrent ? pCfg[p].active + " border-transparent" : pCfg[p].inactive + " border-slate-200"
+                                  )}
+                                >
+                                  {p}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Assignment */}
+                        <div>
+                          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                            <UserCheck className="w-3 h-3" />Assignment
+                          </p>
+                          {selected.assigned_agent_id ? (
+                            <div className="flex items-center justify-between p-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+                              <span className="text-xs text-emerald-700 font-medium">Assigned to you</span>
+                              <button
+                                onClick={async () => {
+                                  await fetch("/api/conversations/assign", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ conversationId: selected.id, agentId: null }),
+                                  });
+                                  setSelected((prev) => prev ? { ...prev, assigned_agent_id: null } : prev);
+                                  toast({ title: "Unassigned" });
+                                }}
+                                className="text-xs text-slate-400 hover:text-red-500 transition-colors"
+                              >
+                                Unassign
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={handleAssignToMe}
+                              disabled={assigning}
+                              className="w-full flex items-center justify-center gap-1.5 text-xs py-2 rounded-xl border border-emerald-200 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50 transition-colors font-medium"
+                            >
+                              {assigning
+                                ? <RefreshCw className="w-3 h-3 animate-spin" />
+                                : <UserCheck className="w-3 h-3" />}
+                              Assign to me
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Status actions */}
+                        <div>
+                          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                            <Shield className="w-3 h-3" />Status
+                          </p>
+                          <div className="space-y-1.5">
+                            {(["open", "escalated", "resolved"] as const).map((s) => (
+                              <button
+                                key={s}
+                                onClick={() => updateStatus(s)}
+                                disabled={selected.status === s}
+                                className={cn(
+                                  "w-full text-left text-xs px-3 py-2 rounded-xl border font-medium transition-colors",
+                                  selected.status === s
+                                    ? cn(STATUS[s].color, "cursor-default opacity-80")
+                                    : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                                )}
+                              >
+                                <span className={cn("inline-block w-2 h-2 rounded-full mr-2", STATUS[s].dot)} />
+                                Mark as {STATUS[s].label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <Link
+                          href={`/dashboard/conversations?id=${selected.id}`}
+                          className="flex items-center gap-1.5 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                        >
+                          <Maximize2 className="w-3 h-3" />
+                          Open full view
+                        </Link>
+                      </div>
+                    )}
+
+                    {infoTab === "notes" && (
+                      <div className="flex flex-col gap-3">
+                        {/* Existing notes */}
+                        {notes.length === 0 ? (
+                          <div className="text-center py-8">
+                            <StickyNote className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                            <p className="text-xs text-slate-400">No internal notes yet.</p>
+                            <p className="text-xs text-slate-300 mt-0.5">Notes are only visible to your team.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2.5">
+                            {notes.map((note) => (
+                              <div key={note.id} className="p-3 bg-amber-50 border border-amber-100 rounded-xl">
+                                <p className="text-xs text-slate-700 leading-relaxed">{note.note_text}</p>
+                                <p className="text-xs text-slate-400 mt-1.5">
+                                  {note.agent?.email ?? "Agent"} · {note.created_at}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Add note */}
+                        <div className="border-t border-slate-100 pt-3 mt-1">
+                          <textarea
+                            value={noteText}
+                            onChange={(e) => setNoteText(e.target.value)}
+                            placeholder="Add internal note… (not visible to customer)"
+                            rows={3}
+                            className="w-full text-xs px-3 py-2 border border-slate-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent bg-slate-50 placeholder:text-slate-400"
+                          />
+                          <button
+                            onClick={handleSaveNote}
+                            disabled={!noteText.trim() || savingNote}
+                            className="mt-2 w-full flex items-center justify-center gap-1.5 text-xs py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-medium disabled:opacity-50 transition-colors"
+                          >
+                            {savingNote
+                              ? <RefreshCw className="w-3 h-3 animate-spin" />
+                              : <StickyNote className="w-3 h-3" />}
+                            Save Note
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
