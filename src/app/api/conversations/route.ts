@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { canCreateConversation } from "@/lib/plan-limits";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
     // Verify chatbot exists and is active
     const { data: chatbot } = await supabase
       .from("chatbots")
-      .select("id, status")
+      .select("id, status, org_id")
       .eq("id", chatbotId)
       .single();
 
@@ -29,16 +30,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Chatbot not available" }, { status: 404 });
     }
 
-    // Check for existing conversation with this session
+    // Check for existing conversation with this session (don't count resume as new)
     const { data: existing } = await supabase
       .from("conversations")
       .select("*")
       .eq("chatbot_id", chatbotId)
       .eq("session_id", sessionId)
-      .single();
+      .maybeSingle();
 
     if (existing) {
       return NextResponse.json({ conversation: existing }, { headers: CORS_HEADERS });
+    }
+
+    // ── Plan limit check (only for new conversations) ──
+    if (chatbot.org_id) {
+      const check = await canCreateConversation(chatbot.org_id);
+      if (!check.allowed) {
+        return NextResponse.json(
+          {
+            error: "chat_limit_reached",
+            message: check.reason,
+            limit: check.limit,
+            used: check.used,
+            upgradeUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/purchase/premium`,
+          },
+          { status: 429, headers: CORS_HEADERS }
+        );
+      }
     }
 
     // Create new conversation

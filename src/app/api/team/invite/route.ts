@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { canAddAgent } from "@/lib/plan-limits";
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,6 +27,19 @@ export async function POST(req: NextRequest) {
 
     if (!org) {
       return NextResponse.json({ error: "Only the workspace owner can invite members" }, { status: 403 });
+    }
+
+    // ── Plan limit check ──
+    const seatCheck = await canAddAgent(orgId);
+    if (!seatCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: "seat_limit_reached",
+          message: seatCheck.reason,
+          upgradeUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/purchase/premium`,
+        },
+        { status: 403 }
+      );
     }
 
     const { data: member, error } = await service

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Loader2, Building2, User, Lock, CreditCard,
   CheckCircle2, Zap, Crown, ArrowRight, Trash2,
-  ShieldCheck,
+  ShieldCheck, TrendingUp, AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,20 @@ interface SettingsFormProps {
   org: { id: string; name: string };
   userEmail: string;
 }
+
+interface PlanData {
+  plan: "starter" | "premium" | "enterprise";
+  planExpiresAt: string | null;
+  hasStripeSubscription: boolean;
+  limits: { chatsPerMonth: number; agentSeats: number; aiRepliesPerMonth: number };
+  usage: { chatsThisMonth: number; chatsLimit: number; chatsRemaining: number };
+}
+
+const PLAN_COLORS = {
+  starter:    { color: "#64748b", bg: "#f8fafc", label: "Free",       icon: "🆓" },
+  premium:    { color: "#0d8585", bg: "#edfaf7", label: "Premium",    icon: "⚡" },
+  enterprise: { color: "#7c3aed", bg: "#f5f3ff", label: "Enterprise", icon: "🏢" },
+};
 
 /* ── Plan definition ── */
 const PLANS = [
@@ -62,6 +76,16 @@ export function SettingsForm({ org, userEmail }: SettingsFormProps) {
   const [pwLoading, setPwLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [planData, setPlanData] = useState<PlanData | null>(null);
+  const [planLoading, setPlanLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/org/plan")
+      .then(r => r.json())
+      .then(d => { if (!d.error) setPlanData(d); })
+      .catch(() => {})
+      .finally(() => setPlanLoading(false));
+  }, []);
 
   const handleOrgSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -254,6 +278,78 @@ export function SettingsForm({ org, userEmail }: SettingsFormProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0 space-y-4">
+
+          {/* Current plan status */}
+          {planLoading ? (
+            <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading plan…
+            </div>
+          ) : planData ? (
+            <div style={{
+              padding: "1rem", borderRadius: "10px",
+              background: PLAN_COLORS[planData.plan].bg,
+              border: `1.5px solid ${PLAN_COLORS[planData.plan].color}40`,
+            }}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span style={{ fontSize: "1.1rem" }}>{PLAN_COLORS[planData.plan].icon}</span>
+                  <div>
+                    <p style={{ fontSize: "0.85rem", fontWeight: 700, color: PLAN_COLORS[planData.plan].color }}>
+                      {PLAN_COLORS[planData.plan].label} Plan
+                    </p>
+                    {planData.planExpiresAt && planData.plan === "premium" && (
+                      <p className="text-xs text-slate-500">
+                        Renews {new Date(planData.planExpiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </p>
+                    )}
+                    {planData.plan === "enterprise" && (
+                      <p className="text-xs text-slate-500">Custom plan · No expiry</p>
+                    )}
+                  </div>
+                </div>
+                {planData.hasStripeSubscription && (
+                  <span className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full font-semibold">
+                    Active subscription
+                  </span>
+                )}
+              </div>
+
+              {/* Usage bar — only for free plan */}
+              {planData.plan === "starter" && planData.usage.chatsLimit > 0 && (
+                <div className="mt-3">
+                  <div className="flex justify-between text-xs text-slate-600 mb-1">
+                    <span className="flex items-center gap-1">
+                      <TrendingUp className="w-3 h-3" />
+                      {planData.usage.chatsThisMonth} / {planData.usage.chatsLimit} chats this month
+                    </span>
+                    <span>{Math.round((planData.usage.chatsThisMonth / planData.usage.chatsLimit) * 100)}%</span>
+                  </div>
+                  <div style={{ height: "6px", background: "#e2e8f0", borderRadius: "999px", overflow: "hidden" }}>
+                    <div style={{
+                      height: "100%", borderRadius: "999px",
+                      width: `${Math.min(100, (planData.usage.chatsThisMonth / planData.usage.chatsLimit) * 100)}%`,
+                      background: planData.usage.chatsRemaining <= 50 ? "#ef4444" : "#0d8585",
+                      transition: "width 0.3s",
+                    }} />
+                  </div>
+                  {planData.usage.chatsRemaining <= 50 && planData.usage.chatsRemaining > 0 && (
+                    <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      Only {planData.usage.chatsRemaining} chats remaining this month
+                    </p>
+                  )}
+                  {planData.usage.chatsRemaining === 0 && (
+                    <p className="text-xs text-red-600 mt-1.5 flex items-center gap-1 font-semibold">
+                      <AlertTriangle className="w-3 h-3" />
+                      Monthly limit reached — new chats are blocked
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {/* Plan upgrade cards */}
           <div className="grid gap-3 sm:grid-cols-3">
             {PLANS.map((plan) => (
               <div
@@ -289,7 +385,8 @@ export function SettingsForm({ org, userEmail }: SettingsFormProps) {
                     </li>
                   ))}
                 </ul>
-                {plan.id !== "starter" && (
+                {/* Plan cards — highlight current plan, hide upgrade for current */}
+                {plan.id !== "starter" && plan.id !== planData?.plan && (
                   <Link
                     href={`/purchase/${plan.id}`}
                     style={{
@@ -310,12 +407,14 @@ export function SettingsForm({ org, userEmail }: SettingsFormProps) {
                     <ArrowRight className="w-3 h-3" />
                   </Link>
                 )}
-                {plan.id === "starter" && (
+                {(plan.id === "starter" || plan.id === planData?.plan) && (
                   <div style={{
                     display: "flex", alignItems: "center", justifyContent: "center",
                     gap: "4px", padding: "5px 10px", borderRadius: "7px",
                     fontSize: "0.72rem", fontWeight: 600,
-                    background: "#f1f5f9", color: "#64748b", width: "100%",
+                    background: plan.id === planData?.plan ? plan.color : "#f1f5f9",
+                    color: plan.id === planData?.plan ? "#fff" : "#64748b",
+                    width: "100%",
                   }}>
                     <CheckCircle2 className="w-3 h-3" /> Current Plan
                   </div>

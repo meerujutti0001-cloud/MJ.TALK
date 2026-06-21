@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback } from "react";
 import { 
   Building2, Mail, Phone, MapPin, Calendar, CheckCircle, 
   Clock, XCircle, Ban, ChevronDown, ChevronUp, ExternalLink,
-  Filter, Search, Download
+  Filter, Search, Download, Zap, Loader2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -49,6 +49,9 @@ export function PurchaseRequestsList({ initialRequests }: PurchaseRequestsListPr
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [planFilter, setPlanFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [activatingId, setActivatingId] = useState<string | null>(null);
+  // orgId input per enterprise request
+  const [orgIdInputs, setOrgIdInputs] = useState<Record<string, string>>({});
 
   // Memoize expensive functions
   const getStatusColor = useCallback((status: string) => {
@@ -127,6 +130,35 @@ export function PurchaseRequestsList({ initialRequests }: PurchaseRequestsListPr
   const toggleExpand = useCallback((id: string) => {
     setExpandedId(prev => prev === id ? null : id);
   }, []);
+
+  // Activate enterprise plan for a specific org
+  const activateEnterprise = useCallback(async (requestId: string) => {
+    const targetOrgId = orgIdInputs[requestId]?.trim();
+    if (!targetOrgId) {
+      alert("Please enter the Organisation ID for this customer first.");
+      return;
+    }
+    if (!confirm(`Activate Enterprise plan for org: ${targetOrgId}?\n\nThis will:\n- Set their plan to 'enterprise'\n- Send them an activation email\n- Mark this request as completed`)) return;
+
+    setActivatingId(requestId);
+    try {
+      const res = await fetch("/api/purchase/activate-enterprise", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId, targetOrgId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Activation failed");
+      setRequests(prev =>
+        prev.map(r => r.id === requestId ? { ...r, status: "completed" } : r)
+      );
+      alert("✅ Enterprise plan activated and customer notified.");
+    } catch (err) {
+      alert(`Failed to activate: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setActivatingId(null);
+    }
+  }, [orgIdInputs]);
 
   return (
     <div>
@@ -590,47 +622,90 @@ export function PurchaseRequestsList({ initialRequests }: PurchaseRequestsListPr
                       padding: "1rem",
                       background: "#f8fbfb",
                       borderRadius: "8px",
-                      display: "flex",
-                      gap: "0.75rem",
-                      flexWrap: "wrap",
                     }}>
-                      <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "#0a1628", marginRight: "auto" }}>
-                        Update Status:
+                      {/* Enterprise Activation Panel */}
+                      {request.plan_type === "enterprise" && request.status !== "completed" && (
+                        <div style={{
+                          marginBottom: "1rem",
+                          padding: "1rem",
+                          background: "#ede9fe",
+                          border: "1px solid #c4b5fd",
+                          borderRadius: "8px",
+                        }}>
+                          <p style={{ margin: "0 0 0.6rem", fontSize: "0.82rem", fontWeight: 700, color: "#5b21b6" }}>
+                            🚀 Activate Enterprise Plan
+                          </p>
+                          <p style={{ margin: "0 0 0.75rem", fontSize: "0.78rem", color: "#6d28d9", lineHeight: 1.5 }}>
+                            Enter the customer&apos;s Organisation ID (from Supabase → organizations table) to activate their Enterprise plan and send them a confirmation email.
+                          </p>
+                          <div style={{ display: "flex", gap: "0.5rem" }}>
+                            <input
+                              type="text"
+                              placeholder="Organisation UUID (e.g. a1b2c3d4-...)"
+                              value={orgIdInputs[request.id] ?? ""}
+                              onChange={(e) => setOrgIdInputs(prev => ({ ...prev, [request.id]: e.target.value }))}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                flex: 1, padding: "0.55rem 0.75rem",
+                                border: "1px solid #c4b5fd", borderRadius: "6px",
+                                fontSize: "0.8rem", fontFamily: "ui-monospace,monospace",
+                                outline: "none", background: "#fff",
+                              }}
+                            />
+                            <button
+                              onClick={(e) => { e.stopPropagation(); activateEnterprise(request.id); }}
+                              disabled={activatingId === request.id || !orgIdInputs[request.id]?.trim()}
+                              style={{
+                                padding: "0.55rem 1rem",
+                                background: activatingId === request.id ? "#8b5cf6" : "#7c3aed",
+                                color: "#fff", border: "none", borderRadius: "6px",
+                                fontSize: "0.8rem", fontWeight: 700, cursor: "pointer",
+                                display: "flex", alignItems: "center", gap: "0.4rem",
+                                opacity: !orgIdInputs[request.id]?.trim() ? 0.5 : 1,
+                                transition: "opacity 0.15s",
+                              }}
+                            >
+                              {activatingId === request.id
+                                ? <><Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> Activating…</>
+                                : <><Zap size={13} /> Activate</>}
+                            </button>
+                          </div>
+                          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                        </div>
+                      )}
+
+                      {/* Status completed badge */}
+                      {request.status === "completed" && request.plan_type === "enterprise" && (
+                        <div style={{ marginBottom: "1rem", padding: "0.75rem 1rem", background: "#d1fae5", border: "1px solid #6ee7b7", borderRadius: "8px", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          <CheckCircle size={16} color="#059669" />
+                          <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "#065f46" }}>Enterprise plan activated</span>
+                        </div>
+                      )}
+
+                      <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+                        <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "#0a1628", marginRight: "auto" }}>
+                          Update Status:
+                        </div>
+                        {["pending_review", "pending_payment", "approved", "completed", "cancelled", "rejected"].map((status) => (
+                          <button
+                            key={status}
+                            onClick={(e) => { e.stopPropagation(); updateStatus(request.id, status); }}
+                            disabled={request.status === status}
+                            style={{
+                              padding: "0.5rem 0.75rem", borderRadius: "6px",
+                              fontSize: "0.75rem", fontWeight: 600, border: "none",
+                              cursor: request.status === status ? "not-allowed" : "pointer",
+                              opacity: request.status === status ? 0.5 : 1,
+                              background: request.status === status ? "#d4f4ee" : "#fff",
+                              color: "#0d8585", transition: "background 0.2s",
+                            }}
+                            onMouseEnter={(e) => { if (request.status !== status) e.currentTarget.style.background = "#edfaf7"; }}
+                            onMouseLeave={(e) => { if (request.status !== status) e.currentTarget.style.background = "#fff"; }}
+                          >
+                            {getStatusLabel(status)}
+                          </button>
+                        ))}
                       </div>
-                      {["pending_review", "pending_payment", "approved", "completed", "cancelled", "rejected"].map((status) => (
-                        <button
-                          key={status}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            updateStatus(request.id, status);
-                          }}
-                          disabled={request.status === status}
-                          style={{
-                            padding: "0.5rem 0.75rem",
-                            borderRadius: "6px",
-                            fontSize: "0.75rem",
-                            fontWeight: 600,
-                            border: "none",
-                            cursor: request.status === status ? "not-allowed" : "pointer",
-                            opacity: request.status === status ? 0.5 : 1,
-                            background: request.status === status ? "#d4f4ee" : "#fff",
-                            color: "#0d8585",
-                            transition: "background 0.2s",
-                          }}
-                          onMouseEnter={(e) => {
-                            if (request.status !== status) {
-                              e.currentTarget.style.background = "#edfaf7";
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            if (request.status !== status) {
-                              e.currentTarget.style.background = "#fff";
-                            }
-                          }}
-                        >
-                          {getStatusLabel(status)}
-                        </button>
-                      ))}
                     </div>
                   </div>
                 )}

@@ -222,6 +222,14 @@ export function WidgetApp({ config }: WidgetAppProps) {
         pageUrl, browserInfo,
       }),
     });
+
+    if (res.status === 429) {
+      const data = await res.json().catch(() => ({}));
+      // Free plan chat limit reached — show a friendly message
+      const limitMsg = data.message ?? "This service has reached its monthly chat limit. Please try again next month or contact support.";
+      throw new Error(`LIMIT_REACHED:${limitMsg}`);
+    }
+
     if (!res.ok) throw new Error("Failed to start conversation");
     const data = await res.json();
     const convId = data.conversation.id;
@@ -357,10 +365,15 @@ export function WidgetApp({ config }: WidgetAppProps) {
       // Mark as sent
       setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, status: "sent" } : m));
       await sendMessage(text, convId!);
-    } catch {
+    } catch (err) {
       // Mark as failed
       setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, status: "failed" } : m));
-      setError("Message failed to send.");
+      const errMsg = err instanceof Error ? err.message : "Message failed to send.";
+      if (errMsg.startsWith("LIMIT_REACHED:")) {
+        setError(errMsg.replace("LIMIT_REACHED:", ""));
+      } else {
+        setError("Message failed to send.");
+      }
       setSendRetryFn(() => () => {
         setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, status: "sending" } : m));
         setError(null);
@@ -377,7 +390,14 @@ export function WidgetApp({ config }: WidgetAppProps) {
       await initConversation(preChatData);
       setShowPreChat(false);
       setMessages([{ id: "welcome", role: "assistant", content: `Hi ${preChatData.name || "there"}! 👋 How can I help you today?`, timestamp: new Date() }]);
-    } catch { setError("Failed to start chat. Please try again."); }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.startsWith("LIMIT_REACHED:")) {
+        setError(msg.replace("LIMIT_REACHED:", ""));
+      } else {
+        setError("Failed to start chat. Please try again.");
+      }
+    }
   };
 
   const handleOpen = () => {
