@@ -7,6 +7,25 @@ const CORS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
+/* ── Reuse intent detection from main chat route ── */
+const INTENT_PATTERNS: Array<{ label: string; keywords: string[] }> = [
+  { label: "refund",    keywords: ["refund","money back","return","reimburse","charge back"] },
+  { label: "billing",   keywords: ["bill","invoice","payment","charge","subscription","plan","price","cost"] },
+  { label: "account",   keywords: ["login","password","account","signup","register","access","locked","email"] },
+  { label: "technical", keywords: ["error","bug","crash","not working","broken","issue","fail","down","slow"] },
+  { label: "complaint", keywords: ["complaint","angry","frustrated","terrible","worst","awful","disgusted","upset"] },
+  { label: "setup",     keywords: ["setup","install","configure","integration","how to","get started","onboard"] },
+];
+
+function detectIntent(text: string): { label: string; confidence: number } {
+  const lower = text.toLowerCase();
+  for (const { label, keywords } of INTENT_PATTERNS) {
+    const matched = keywords.filter((k) => lower.includes(k)).length;
+    if (matched > 0) return { label, confidence: Math.min(0.5 + matched * 0.15, 0.95) };
+  }
+  return { label: "general", confidence: 0.5 };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -107,13 +126,41 @@ export async function POST(req: NextRequest) {
       content: "[ Requested to speak with a human agent ]",
     });
 
-    // Step 5 — Create high-priority notification for the org
+    // Step 5 — Detect intent from recent messages for AI session logging
+    const { data: recentMsgs } = await supabase
+      .from("messages")
+      .select("role, content")
+      .eq("conversation_id", conversationId)
+      .eq("role", "user")
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    const userText = (recentMsgs ?? []).map((m) => m.content).join(" ");
+    const intent = detectIntent(userText);
+
+    // Upsert ai_session record with intent + escalation flag
+    await supabase
+      .from("ai_sessions")
+      .upsert(
+        {
+          conversation_id:    conversationId,
+          intent_label:       intent.label,
+          intent_confidence:  intent.confidence,
+          escalated_to_human: true,
+          escalation_reason:  "User requested human agent",
+          updated_at:         new Date().toISOString(),
+        },
+        { onConflict: "conversation_id" }
+      );
+
+    // Step 6 — Create high-priority notification for the org
     const { error: notifErr } = await supabase.from("notifications").insert({
-      org_id: chatbot.org_id,
+      org_id:          chatbot.org_id,
       conversation_id: conversationId,
-      type: "escalated",
-      message: `🚨 Human agent requested by ${visitorName ?? "a visitor"}${visitorEmail ? ` (${visitorEmail})` : ""}`,
-      read: false,
+      type:            "escalated",
+      message:         `🚨 Human agent requested by ${visitorName ?? "a visitor"}${visitorEmail ? ` (${visitorEmail})` : ""} — Intent: ${intent.label}`,
+      read:            false,
+      priority:        "high",
     });
 
     if (notifErr) {

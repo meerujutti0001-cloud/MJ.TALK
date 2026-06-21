@@ -3,7 +3,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/get-org";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Bot, Plus, Settings, BarChart2, ExternalLink } from "lucide-react";
+import { Bot, Plus, Settings, BarChart2, ExternalLink, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatRelativeTime } from "@/lib/utils";
@@ -34,6 +34,20 @@ export default async function ChatbotsPage() {
   const countMap: Record<string, number> = {};
   (convCounts ?? []).forEach((c) => {
     countMap[c.chatbot_id] = (countMap[c.chatbot_id] ?? 0) + 1;
+  });
+
+  // Get KB article counts per chatbot
+  const { data: kbCounts } = chatbotIds.length > 0
+    ? await supabase
+        .from("kb_articles")
+        .select("chatbot_id")
+        .in("chatbot_id", chatbotIds)
+        .eq("is_published", true)
+    : { data: [] };
+
+  const kbMap: Record<string, number> = {};
+  (kbCounts ?? []).forEach((k: { chatbot_id: string }) => {
+    kbMap[k.chatbot_id] = (kbMap[k.chatbot_id] ?? 0) + 1;
   });
 
   return (
@@ -90,6 +104,10 @@ export default async function ChatbotsPage() {
                     <BarChart2 className="w-3.5 h-3.5" />
                     {countMap[bot.id] ?? 0} conversations
                   </span>
+                  <span className="flex items-center gap-1">
+                    <BookOpen className="w-3.5 h-3.5" />
+                    {kbMap[bot.id] ?? 0} KB articles
+                  </span>
                   <span>Updated {formatRelativeTime(bot.updated_at)}</span>
                 </div>
 
@@ -99,6 +117,12 @@ export default async function ChatbotsPage() {
                     <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs">
                       <Settings className="w-3.5 h-3.5" />
                       Configure
+                    </Button>
+                  </Link>
+                  <Link href={`/dashboard/chatbots/${bot.id}/knowledge`}>
+                    <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                      <BookOpen className="w-3.5 h-3.5" />
+                      KB
                     </Button>
                   </Link>
                   <Link href={`/dashboard/chatbots/${bot.id}/embed`}>

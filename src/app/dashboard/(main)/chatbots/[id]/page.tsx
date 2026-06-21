@@ -3,7 +3,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/get-org";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft, ExternalLink, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatbotForm } from "@/components/dashboard/chatbot-form";
 import type { Chatbot } from "@/types";
@@ -24,6 +24,13 @@ export default async function EditChatbotPage({ params }: { params: Promise<{ id
 
   if (!chatbot) notFound();
 
+  // KB article count
+  const { count: kbCount } = await supabase
+    .from("kb_articles")
+    .select("*", { count: "exact", head: true })
+    .eq("chatbot_id", id)
+    .eq("is_published", true);
+
   return (
     <div className="p-6 max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -38,12 +45,25 @@ export default async function EditChatbotPage({ params }: { params: Promise<{ id
           <h1 className="text-2xl font-bold text-slate-900">{chatbot.name}</h1>
           <p className="text-slate-500 text-sm mt-1">Configure your chatbot settings.</p>
         </div>
-        <Link href={`/dashboard/chatbots/${chatbot.id}/embed`}>
-          <Button variant="outline" size="sm" className="gap-2">
-            <ExternalLink className="w-4 h-4" />
-            Embed Code
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href={`/dashboard/chatbots/${chatbot.id}/knowledge`}>
+            <Button variant="outline" size="sm" className="gap-2">
+              <BookOpen className="w-4 h-4" />
+              Knowledge Base
+              {(kbCount ?? 0) > 0 && (
+                <span className="bg-emerald-100 text-emerald-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
+                  {kbCount}
+                </span>
+              )}
+            </Button>
+          </Link>
+          <Link href={`/dashboard/chatbots/${chatbot.id}/embed`}>
+            <Button variant="outline" size="sm" className="gap-2">
+              <ExternalLink className="w-4 h-4" />
+              Embed Code
+            </Button>
+          </Link>
+        </div>
       </div>
       <ChatbotForm orgId={orgId} chatbot={chatbot as Chatbot} />
     </div>

@@ -86,6 +86,40 @@ export interface Notification {
   conversation?: Conversation;
 }
 
+export interface KbArticle {
+  id: string;
+  chatbot_id: string;
+  org_id: string;
+  title: string;
+  content: string;
+  category: "general" | "account" | "payment" | "refund" | "technical" | "setup" | "faq";
+  tags: string[];
+  is_published: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type IntentLabel =
+  | "refund" | "technical" | "account" | "billing"
+  | "complaint" | "setup" | "general" | "other";
+
+export interface AiSession {
+  id: string;
+  conversation_id: string;
+  detected_intent: string | null;
+  intent_label: IntentLabel | null;
+  intent_confidence: number | null;
+  ai_confidence_score: number | null;
+  escalated_to_human: boolean;
+  escalation_reason: string | null;
+  ai_summary: string | null;
+  handoff_summary: string | null;
+  kb_articles_used: string[];
+  created_at: string;
+  updated_at: string;
+}
+
 // API request/response types
 export interface ChatRequest {
   messages: ChatMessage[];

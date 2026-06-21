@@ -25,6 +25,7 @@ type UIMessage = {
   role: "user" | "assistant" | "admin";
   content: string;
   timestamp: Date;
+  status?: "sending" | "sent" | "failed"; // Phase 4: delivery state
 };
 
 interface WidgetAppProps {
@@ -96,6 +97,11 @@ export function WidgetApp({ config }: WidgetAppProps) {
   const [hasNewMessage, setHasNewMessage] = useState(false);
   // Phase 3: agent typing indicator visible in widget
   const [agentIsTyping, setAgentIsTyping] = useState(false);
+  // Phase 4: chat state for UX feedback
+  const [chatState, setChatState] = useState<
+    "idle" | "ai_responding" | "human_requested" | "waiting_agent" | "agent_joined" | "resolved"
+  >("idle");
+  const [sendRetryFn, setSendRetryFn] = useState<(() => void) | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef       = useRef<HTMLTextAreaElement>(null);
@@ -156,6 +162,7 @@ export function WidgetApp({ config }: WidgetAppProps) {
               return [...prev, newMsg];
             });
             if (!isOpen) { setUnreadCount((c) => c + 1); setHasNewMessage(true); }
+            setChatState("agent_joined");
             if (soundEnabled) playPing();
           }
         )
@@ -241,7 +248,9 @@ export function WidgetApp({ config }: WidgetAppProps) {
     ];
 
     setIsTyping(true);
+    setChatState("ai_responding");
     setError(null);
+    setSendRetryFn(null);
     abortRef.current = new AbortController();
 
     try {
@@ -265,24 +274,16 @@ export function WidgetApp({ config }: WidgetAppProps) {
 
       const contentType = res.headers.get("content-type") || "";
       
-      // Check if response is streaming (text/event-stream) or regular text
       if (contentType.includes("text/event-stream")) {
-        // Streaming response - show tokens as they arrive
         const tempId = `ai_${Date.now()}`;
         let fullText = "";
         
-        // Add empty AI message that we'll update
         setMessages((prev) => [
           ...prev,
-          {
-            id: tempId,
-            role: "assistant" as const,
-            content: "",
-            timestamp: new Date(),
-          },
+          { id: tempId, role: "assistant" as const, content: "", timestamp: new Date() },
         ]);
         
-        setIsTyping(false); // Stop typing indicator, show streaming instead
+        setIsTyping(false);
 
         const reader = res.body?.getReader();
         const decoder = new TextDecoder();
@@ -291,52 +292,39 @@ export function WidgetApp({ config }: WidgetAppProps) {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-
             const chunk = decoder.decode(value, { stream: true });
             fullText += chunk;
-
-            // Update the message in real-time
             setMessages((prev) =>
-              prev.map((m) =>
-                m.id === tempId ? { ...m, content: fullText } : m
-              )
+              prev.map((m) => m.id === tempId ? { ...m, content: fullText } : m)
             );
           }
         }
 
-        // Check escalation after full message received
         const keyword = config.escalation_keyword ?? "ESCALATE";
         if (fullText.toUpperCase().includes(keyword.toUpperCase())) {
           setIsEscalated(true);
+          setChatState("waiting_agent");
+        } else {
+          setChatState("idle");
         }
-
         if (soundEnabled && fullText) playPing();
         
       } else {
-        // Regular response - show all at once (fallback)
         const replyText = await res.text();
+        if (!replyText.trim()) throw new Error("Empty response from AI");
 
-        if (!replyText.trim()) {
-          throw new Error("Empty response from AI");
-        }
-
-        // Add AI message to chat
         setMessages((prev) => [
           ...prev,
-          {
-            id: `ai_${Date.now()}`,
-            role: "assistant" as const,
-            content: replyText,
-            timestamp: new Date(),
-          },
+          { id: `ai_${Date.now()}`, role: "assistant" as const, content: replyText, timestamp: new Date() },
         ]);
 
-        // Check escalation
         const keyword = config.escalation_keyword ?? "ESCALATE";
         if (replyText.toUpperCase().includes(keyword.toUpperCase())) {
           setIsEscalated(true);
+          setChatState("waiting_agent");
+        } else {
+          setChatState("idle");
         }
-
         if (soundEnabled) playPing();
       }
       
@@ -345,7 +333,11 @@ export function WidgetApp({ config }: WidgetAppProps) {
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") return;
       setIsTyping(false);
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      setChatState("idle");
+      const errMsg = err instanceof Error ? err.message : "Something went wrong.";
+      setError(errMsg);
+      // Store retry function
+      setSendRetryFn(() => () => sendMessage(text, convId));
     } finally {
       setIsTyping(false);
     }
@@ -354,16 +346,29 @@ export function WidgetApp({ config }: WidgetAppProps) {
   const handleSend = async () => {
     const text = input.trim();
     if (!text || isTyping) return;
-    const userMsg: UIMessage = { id: `user_${Date.now()}`, role: "user", content: text, timestamp: new Date() };
-    setMessages((prev) => [...prev, userMsg]);
+    const msgId = `user_${Date.now()}`;
+    setMessages((prev) => [...prev, { id: msgId, role: "user", content: text, timestamp: new Date(), status: "sending" }]);
     setInput("");
     if (inputRef.current) inputRef.current.style.height = "auto";
-    typingSend(); // stop typing indicator immediately
+    typingSend();
     try {
       let convId = conversationId;
       if (!convId) convId = await initConversation();
+      // Mark as sent
+      setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, status: "sent" } : m));
       await sendMessage(text, convId!);
-    } catch { setError("Failed to send message. Please try again."); }
+    } catch {
+      // Mark as failed
+      setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, status: "failed" } : m));
+      setError("Message failed to send.");
+      setSendRetryFn(() => () => {
+        setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, status: "sending" } : m));
+        setError(null);
+        sendMessage(text, conversationId!).catch(() => {
+          setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, status: "failed" } : m));
+        });
+      });
+    }
   };
 
   const handlePreChatSubmit = async (e: React.FormEvent) => {
@@ -430,6 +435,7 @@ export function WidgetApp({ config }: WidgetAppProps) {
       }
 
       setIsEscalated(true);
+      setChatState("waiting_agent");
       // System message added by the API is picked up via Realtime — no need to push manually
     } catch {
       setError("Could not connect to support. Please try again.");
@@ -464,9 +470,20 @@ export function WidgetApp({ config }: WidgetAppProps) {
             <div className="flex-1 min-w-0">
               <p className="text-white font-semibold text-sm leading-tight">{config.name}</p>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+                <span className={cn(
+                  "w-2 h-2 rounded-full flex-shrink-0",
+                  chatState === "ai_responding" ? "bg-amber-300 animate-pulse" :
+                  chatState === "waiting_agent" ? "bg-orange-300 animate-pulse" :
+                  chatState === "agent_joined"  ? "bg-emerald-300" :
+                  "bg-emerald-300 animate-pulse"
+                )} />
                 <span className="text-white/80 text-xs">
-                  {escalationPending ? "Connecting to agent…" : isEscalated ? "Human agent joining…" : "Online · replies instantly"}
+                  {escalationPending    ? "Connecting to agent…"  :
+                   chatState === "ai_responding" ? "AI is responding…" :
+                   chatState === "waiting_agent" ? "Waiting for agent…" :
+                   chatState === "agent_joined"  ? "Agent connected ✓" :
+                   isEscalated ? "Human agent joining…" :
+                   "Online · replies instantly"}
                 </span>
               </div>
             </div>
@@ -580,13 +597,41 @@ export function WidgetApp({ config }: WidgetAppProps) {
                 )}
 
                 {error && (
-                  <div className="text-center text-xs text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-                    {error}
-                    <button onClick={() => setError(null)} className="ml-2 underline hover:no-underline">Dismiss</button>
+                  <div className="text-center text-xs text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
+                    <p className="font-medium mb-1">⚠️ Something went wrong</p>
+                    <p>{error}</p>
+                    <div className="flex items-center justify-center gap-2 mt-2">
+                      {sendRetryFn && (
+                        <button onClick={() => { sendRetryFn(); }} className="underline hover:no-underline font-medium">
+                          Retry
+                        </button>
+                      )}
+                      <button onClick={() => setError(null)} className="text-slate-400 underline hover:no-underline">Dismiss</button>
+                    </div>
                   </div>
                 )}
 
-                {isEscalated && (
+                {/* Chat state indicators */}
+                {chatState === "waiting_agent" && (
+                  <div className="rounded-xl px-3 py-3 border text-center" style={{ background: `${color}10`, borderColor: `${color}30` }}>
+                    <p className="text-xs font-semibold mb-1" style={{ color }}>🔔 Human Agent Requested</p>
+                    <p className="text-xs text-slate-500">A support agent has been notified and will join shortly.</p>
+                    <div className="flex justify-center gap-1 mt-2">
+                      {[0, 1, 2].map((i) => (
+                        <div key={i} className="w-1.5 h-1.5 rounded-full typing-dot" style={{ backgroundColor: `${color}80` }} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {chatState === "agent_joined" && (
+                  <div className="rounded-xl px-3 py-2.5 border text-center bg-emerald-50 border-emerald-200">
+                    <p className="text-xs font-semibold text-emerald-700">✅ Agent Connected</p>
+                    <p className="text-xs text-emerald-600 mt-0.5">You are now chatting with a human agent.</p>
+                  </div>
+                )}
+
+                {isEscalated && chatState !== "waiting_agent" && chatState !== "agent_joined" && (
                   <div className="text-center text-xs rounded-xl px-3 py-2.5 border" style={{ background: `${color}18`, borderColor: `${color}40`, color }}>
                     ✅ A human agent has been notified and will join shortly.
                   </div>
