@@ -76,7 +76,7 @@ function PremiumCheckout({ plan }: { plan: "premium" }) {
         setLoading(false);
         return;
       }
-      if (!data.url) throw new Error("No checkout URL received");
+      if (!data.url) throw new Error("No checkout URL received from Stripe");
       window.location.href = data.url;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");

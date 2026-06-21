@@ -89,6 +89,7 @@ export async function POST(req: NextRequest) {
       customer: customerId,
       mode: "subscription",
       payment_method_types: ["card"],
+      payment_method_collection: "always",
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${appUrl}/purchase/confirmation?session_id={CHECKOUT_SESSION_ID}&plan=premium`,
       cancel_url: `${appUrl}/purchase/premium?cancelled=1`,
@@ -102,7 +103,16 @@ export async function POST(req: NextRequest) {
         metadata: { user_id: user.id, org_id: org?.id ?? "", plan: "premium" },
       },
       allow_promotion_codes: true,
+      billing_address_collection: "auto",
     });
+
+    if (!session.url) {
+      console.error("[stripe/checkout] session.url is null. Session:", JSON.stringify({ id: session.id, status: session.status }));
+      return NextResponse.json(
+        { error: "Stripe returned no checkout URL. Ensure the Price ID is a recurring subscription price in your Stripe dashboard." },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ url: session.url });
   } catch (err) {
