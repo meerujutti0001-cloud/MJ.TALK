@@ -19,9 +19,13 @@ import { LandingWidget } from "@/components/landing/landing-widget";
 ══════════════════════════════════════════ */
 function Navbar() {
   const [open, setOpen] = useState(false);
-  const links = ["Features", "Pricing", "Integrations", "Docs"];
-
-  const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@mjtalk.com";
+  // href: anchor links for page sections, real paths for standalone pages
+  const links = [
+    { label: "Features",     href: "#features" },
+    { label: "Pricing",      href: "#pricing" },
+    { label: "Integrations", href: "#features" },
+    { label: "Docs",         href: "/docs" },
+  ];
 
   return (
     <nav style={{
@@ -44,13 +48,13 @@ function Navbar() {
       {/* Desktop nav */}
       <div className="hidden md:flex" style={{ gap: "2rem", alignItems: "center" }}>
         {links.map(l => (
-          <a key={l} href={`#${l.toLowerCase()}`} style={{
+          <a key={l.label} href={l.href} style={{
             fontSize: "0.875rem", fontWeight: 500, color: "#5a7878",
             textDecoration: "none", transition: "color 0.2s",
           }}
             onMouseEnter={e => (e.currentTarget.style.color = "#0d8585")}
             onMouseLeave={e => (e.currentTarget.style.color = "#5a7878")}
-          >{l}</a>
+          >{l.label}</a>
         ))}
         <Link href="/login" style={{
           fontSize: "0.875rem", fontWeight: 500, color: "#5a7878",
@@ -89,11 +93,14 @@ function Navbar() {
           background: "#fff", borderBottom: "1px solid #d4f4ee",
           padding: "1rem 2rem", display: "flex", flexDirection: "column", gap: "0.75rem",
         }}>
-          {[...links, "Sign In"].map(l => (
-            <a key={l} href="#" onClick={() => setOpen(false)} style={{
+          {links.map(l => (
+            <a key={l.label} href={l.href} onClick={() => setOpen(false)} style={{
               fontSize: "0.9rem", fontWeight: 500, color: "#5a7878", textDecoration: "none",
-            }}>{l}</a>
+            }}>{l.label}</a>
           ))}
+          <a href="/login" onClick={() => setOpen(false)} style={{
+            fontSize: "0.9rem", fontWeight: 500, color: "#5a7878", textDecoration: "none",
+          }}>Sign In</a>
           <Link href="/contact" onClick={() => setOpen(false)} style={{
             fontSize: "0.9rem", fontWeight: 600, color: "#0d8585", textDecoration: "none",
           }}>Contact Support</Link>
@@ -191,12 +198,12 @@ function Hero() {
           >See it in action →</a>
         </div>
 
-        {/* Stats */}
+        {/* Stats — honest, product-verifiable numbers */}
         <div style={{ display: "flex", gap: "2.5rem" }}>
           {[
-            { val: "35K+", label: "Businesses using MJ.TALK" },
-            { val: "99.9%", label: "Uptime guaranteed" },
-            { val: "4.2s", label: "Avg. first response" },
+            { val: "< 5 min", label: "To deploy your first chatbot" },
+            { val: "24/7",    label: "AI handles off-hours chats" },
+            { val: "Free",    label: "No credit card to start" },
           ].map(s => (
             <div key={s.val}>
               <div style={{ fontFamily: "Inter, system-ui, sans-serif", letterSpacing: "-0.04em", fontStretch: "condensed", fontSize: "1.5rem", fontWeight: 700, color: "#fff" }}>{s.val}</div>
@@ -343,7 +350,7 @@ function ChatWidget() {
    SOCIAL STRIP
 ══════════════════════════════════════════ */
 function SocialStrip() {
-  const brands = ["Shopify Partners", "WooCommerce", "Zendesk Users", "Intercom Migrants", "500+ Agencies"];
+  const brands = ["Shopify Stores", "WooCommerce Sites", "WordPress Blogs", "Custom Platforms", "SaaS Products"];
   return (
     <div style={{
       background: "#edfaf7", borderTop: "1px solid #d4f4ee", borderBottom: "1px solid #d4f4ee",
@@ -352,7 +359,7 @@ function SocialStrip() {
       gap: "3rem", flexWrap: "wrap",
     }}>
       <span style={{ fontSize: "0.78rem", color: "#5a7878", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-        Trusted by teams at
+        Works with
       </span>
       {brands.map(b => (
         <span key={b} style={{
@@ -478,7 +485,7 @@ function HowItWorks() {
               <div style={{ background: "#edfaf7", color: "#0a7070", fontSize: "0.72rem", fontWeight: 600, padding: "0.25rem 0.6rem", borderRadius: "999px" }}>● 3 Active</div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem", marginBottom: "1.25rem" }}>
-              {[{ val: "142", label: "Chats today" }, { val: "4.1s", label: "Avg. response" }, { val: "96%", label: "Satisfaction" }].map(m => (
+              {[{ val: "24+", label: "Chats today (demo)" }, { val: "< 5s", label: "Avg. first reply" }, { val: "AI + Human", label: "Hybrid support" }].map(m => (
                 <div key={m.label} style={{ background: "#edfaf7", borderRadius: "8px", padding: "0.75rem", textAlign: "center" }}>
                   <div style={{ fontFamily: "Inter, system-ui, sans-serif", letterSpacing: "-0.04em", fontStretch: "condensed", fontSize: "1.25rem", fontWeight: 700, color: "#0a7070" }}>{m.val}</div>
                   <div style={{ fontSize: "0.7rem", color: "#5a7878", marginTop: "0.1rem" }}>{m.label}</div>
@@ -517,9 +524,9 @@ function HowItWorks() {
    TESTIMONIALS  — teal-800 dark bg
 ══════════════════════════════════════════ */
 const testimonials = [
-  { quote: "We switched from Intercom and cut our support costs by 60%. The AI bot handles 70% of our incoming chats without any human intervention.", name: "Aisha Rahman", role: "Head of Customer Success, Nexora", initials: "AR" },
-  { quote: "Setup took 4 minutes. The visitor tracking showed us exactly where customers were getting confused, and our conversions went up 22% in the first month.", name: "Tom Weiss", role: "Co-founder, Stackbloom", initials: "TW" },
-  { quote: "Best live chat tool for the price. The team inbox means everyone on our 8-person support team is always on the same page — no dropped conversations.", name: "Priya Menon", role: "Operations Lead, Clarivex", initials: "PM" },
+  { quote: "We replaced our old chat tool in a weekend. The AI bot handles routine questions around the clock, and escalation to a real agent works flawlessly.", name: "Alex R.", role: "Support Lead, SaaS startup", initials: "AR" },
+  { quote: "Setup really did take about four minutes. The Knowledge Base feature means our AI gives accurate answers without us writing custom prompts every time.", name: "Tariq M.", role: "Founder, e-commerce brand", initials: "TM" },
+  { quote: "The team inbox keeps everyone on the same page. We stopped dropping conversations the day we switched over.", name: "Clara J.", role: "Operations, services agency", initials: "CJ" },
 ];
 
 function Testimonials() {
@@ -527,12 +534,15 @@ function Testimonials() {
     <section id="testimonials" style={{ padding: "5rem 2.5rem", background: "#064f50" }}>
       <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
         <div style={{ fontSize: "0.78rem", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "#4dd4b8", marginBottom: "0.75rem" }}>
-          Customer stories
+          What teams say
         </div>
         <h2 style={{ fontFamily: "Inter, system-ui, sans-serif", letterSpacing: "-0.04em", fontStretch: "condensed", fontSize: "clamp(1.8rem, 3vw, 2.4rem)", fontWeight: 700, color: "#fff", lineHeight: 1.2 }}>
-          Loved by support teams worldwide
+          Built for real support workflows
         </h2>
-        <div className="testi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1.5rem", marginTop: "3rem" }}>
+        <p style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.45)", marginTop: "0.5rem", marginBottom: "3rem", lineHeight: 1.6 }}>
+          Representative scenarios showing how teams get value from MJ.TALK.
+        </p>
+        <div className="testi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1.5rem", marginTop: "0" }}>
           {testimonials.map(t => (
             <div key={t.name} style={{
               background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)",
@@ -806,7 +816,7 @@ function CTABanner() {
         Start your first conversation today
       </h2>
       <p style={{ fontSize: "1.05rem", color: "rgba(255,255,255,0.75)", marginBottom: "2rem", maxWidth: "480px", marginLeft: "auto", marginRight: "auto" }}>
-        Join 35,000+ businesses using MJ.TALK to turn website visitors into loyal customers. Free forever, no credit card required.
+        Start free today. No credit card required. Your first chatbot is live in minutes.
       </p>
       <div style={{ display: "flex", justifyContent: "center", gap: "1rem", flexWrap: "wrap" }}>
         <Link href="/signup" style={{
@@ -818,11 +828,15 @@ function CTABanner() {
           onMouseEnter={e => (e.currentTarget.style.background = "#edfaf7")}
           onMouseLeave={e => (e.currentTarget.style.background = "#fff")}
         >Create your free account</Link>
-        <a href="#" style={{
+        <Link href="/contact" style={{
           border: "1.5px solid rgba(255,255,255,0.35)", color: "#fff",
           padding: "0.75rem 1.5rem", borderRadius: "7px",
           fontWeight: 500, fontSize: "0.95rem", textDecoration: "none",
-        }}>Book a demo</a>
+          transition: "border-color 0.2s",
+        }}
+          onMouseEnter={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.7)")}
+          onMouseLeave={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.35)")}
+        >Talk to us →</Link>
       </div>
     </section>
   );
@@ -833,9 +847,23 @@ function CTABanner() {
 ══════════════════════════════════════════ */
 function Footer() {
   const cols = [
-    { title: "Product", links: ["Live Chat", "AI Chatbot", "Team Inbox", "Analytics", "Integrations"] },
-    { title: "Company", links: ["About", "Blog", "Careers", "Press", "Contact Support"] },
-    { title: "Legal", links: ["Privacy Policy", "Terms of Service", "Cookie Policy", "GDPR", "Security"] },
+    { title: "Product",  links: [
+      { label: "Live Chat",    href: "#features" },
+      { label: "AI Chatbot",   href: "#features" },
+      { label: "Team Inbox",   href: "#features" },
+      { label: "Analytics",    href: "#features" },
+      { label: "Docs",         href: "/docs" },
+    ]},
+    { title: "Company",  links: [
+      { label: "Contact Support", href: "/contact" },
+      { label: "Sign In",         href: "/login" },
+      { label: "Get Started",     href: "/signup" },
+    ]},
+    { title: "Legal",    links: [
+      { label: "Privacy Policy",    href: "/privacy" },
+      { label: "Terms of Service",  href: "/terms" },
+      { label: "Cookie Policy",     href: "/cookies" },
+    ]},
   ];
   return (
     <footer style={{ background: "#0a1628", padding: "3.5rem 2.5rem 2rem" }}>
@@ -856,20 +884,13 @@ function Footer() {
               </h5>
               <ul style={{ listStyle: "none", padding: 0, display: "flex", flexDirection: "column", gap: "0.6rem" }}>
                 {col.links.map(l => (
-                  <li key={l}>
-                    {l === "Contact Support" ? (
-                      <a
-                        href="/contact"
-                        style={{ fontSize: "0.83rem", color: "rgba(255,255,255,0.6)", textDecoration: "none", transition: "color 0.2s" }}
-                        onMouseEnter={e => (e.currentTarget.style.color = "#4dd4b8")}
-                        onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.6)")}
-                      >{l}</a>
-                    ) : (
-                      <a href="#" style={{ fontSize: "0.83rem", color: "rgba(255,255,255,0.6)", textDecoration: "none", transition: "color 0.2s" }}
-                        onMouseEnter={e => (e.currentTarget.style.color = "#4dd4b8")}
-                        onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.6)")}
-                      >{l}</a>
-                    )}
+                  <li key={l.label}>
+                    <a
+                      href={l.href}
+                      style={{ fontSize: "0.83rem", color: "rgba(255,255,255,0.6)", textDecoration: "none", transition: "color 0.2s" }}
+                      onMouseEnter={e => (e.currentTarget.style.color = "#4dd4b8")}
+                      onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.6)")}
+                    >{l.label}</a>
                   </li>
                 ))}
               </ul>

@@ -1,4 +1,5 @@
 import { requireAuth } from "@/lib/auth";
+import { getUserRole } from "@/lib/auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/get-org";
 import { redirect } from "next/navigation";
@@ -13,6 +14,11 @@ export default async function ChatbotsPage() {
   const user = await requireAuth();
   const orgId = await getOrgId(user.id);
   if (!orgId) redirect("/dashboard/setup");
+
+  // Resolve role — agents can view chatbots but not create/delete
+  const role = await getUserRole(user.id, orgId);
+  const canCreate = role === "owner" || role === "super_admin";
+  const canDelete = role === "owner" || role === "super_admin";
 
   const supabase = createServiceClient();
 
@@ -61,12 +67,14 @@ export default async function ChatbotsPage() {
           </h1>
           <p className="text-slate-500 text-sm mt-1">Create and manage your AI support agents.</p>
         </div>
-        <Link href="/dashboard/chatbots/new">
-          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
-            <Plus className="w-4 h-4" />
-            New Chatbot
-          </Button>
-        </Link>
+        {canCreate && (
+          <Link href="/dashboard/chatbots/new">
+            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+              <Plus className="w-4 h-4" />
+              New Chatbot
+            </Button>
+          </Link>
+        )}
       </div>
 
       {/* List */}
@@ -131,7 +139,7 @@ export default async function ChatbotsPage() {
                       Embed
                     </Button>
                   </Link>
-                  <DeleteChatbotButton chatbotId={bot.id} chatbotName={bot.name} />
+                  {canDelete && <DeleteChatbotButton chatbotId={bot.id} chatbotName={bot.name} />}
                 </div>
               </CardContent>
             </Card>
@@ -147,12 +155,19 @@ export default async function ChatbotsPage() {
             <p className="text-sm text-slate-500 mb-6 max-w-sm mx-auto">
               Create your first AI chatbot and embed it on your website in minutes.
             </p>
-            <Link href="/dashboard/chatbots/new">
-              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
-                <Plus className="w-4 h-4" />
-                Create Chatbot
-              </Button>
-            </Link>
+            {canCreate && (
+              <Link href="/dashboard/chatbots/new">
+                <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+                  <Plus className="w-4 h-4" />
+                  Create Chatbot
+                </Button>
+              </Link>
+            )}
+            {!canCreate && (
+              <p className="text-xs text-slate-400 border border-slate-200 rounded-lg p-3 bg-slate-50">
+                Contact your workspace owner to create chatbots.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}

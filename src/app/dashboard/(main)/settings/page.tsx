@@ -1,4 +1,5 @@
 import { requireAuth } from "@/lib/auth";
+import { getUserRole } from "@/lib/auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/get-org";
 import { redirect } from "next/navigation";
@@ -9,6 +10,12 @@ export default async function SettingsPage() {
   const user = await requireAuth();
   const orgId = await getOrgId(user.id);
   if (!orgId) redirect("/dashboard/setup");
+
+  // Agents cannot access settings
+  const role = await getUserRole(user.id, orgId);
+  if (role === "agent" || role === "guest") {
+    redirect("/dashboard?error=forbidden");
+  }
 
   const serviceClient = createServiceClient();
   const { data: org } = await serviceClient

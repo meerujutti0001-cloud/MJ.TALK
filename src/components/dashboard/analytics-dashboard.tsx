@@ -302,9 +302,6 @@ function AnalyticsContent({ data, range }: { data: AnalyticsData; range: Range }
           </Card>
         ))}
       </div>
-    </div>
-  );
-}
 
       {/* ── Trend chart + status distribution ── */}
       <div className="grid lg:grid-cols-3 gap-6">
@@ -415,3 +412,262 @@ function AnalyticsContent({ data, range }: { data: AnalyticsData; range: Range }
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Peak hours heatmap ── */}
+      <Card className="border-slate-200 shadow-sm">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <Activity className="w-4 h-4 text-blue-500" />
+              Peak Hours — When Customers Chat
+            </CardTitle>
+            <span className="text-xs text-slate-400">Local time · based on conversation start time</span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-end gap-1 h-20 mt-1">
+            {data.hourlyData.map((count, hour) => {
+              const h = Math.max(4, Math.round((count / maxHour) * 100));
+              const isPeak = count === maxHour && count > 0;
+              return (
+                <div key={hour} className="flex-1 flex flex-col items-center gap-1 group relative">
+                  <div
+                    className={cn(
+                      "w-full rounded-t transition-all",
+                      isPeak ? "bg-blue-500" : "bg-blue-200 group-hover:bg-blue-400"
+                    )}
+                    style={{ height: `${h}%`, minHeight: "2px" }}
+                    title={`${hour}:00 — ${count} chats`}
+                  />
+                  {/* Show label every 3 hours */}
+                  {hour % 3 === 0 && (
+                    <span className="text-xs text-slate-400 tabular-nums">{hour}h</span>
+                  )}
+                  {/* Tooltip */}
+                  {count > 0 && (
+                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:flex bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
+                      {hour}:00 · {count}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {maxHour > 0 && (
+            <p className="text-xs text-slate-400 mt-2">
+              Peak: {data.hourlyData.indexOf(maxHour)}:00 with {maxHour} conversation{maxHour !== 1 ? "s" : ""}
+            </p>
+          )}
+          {maxHour === 0 && (
+            <p className="text-xs text-slate-300 mt-2 text-center">No data for this period</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── AI + Intent section ── */}
+      {data.sessionCount > 0 && (
+        <div className="grid lg:grid-cols-2 gap-6">
+
+          {/* AI vs Human */}
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <Zap className="w-4 h-4 text-emerald-500" />
+                AI vs Human Resolution
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {[
+                { label: "AI Resolved",   count: data.aiHandled,    color: "bg-emerald-500", text: "text-emerald-600", dot: "bg-emerald-400" },
+                { label: "Human Handoff", count: data.humanHandled, color: "bg-amber-500",   text: "text-amber-600",  dot: "bg-amber-400" },
+              ].map(({ label, count, color, text, dot }) => {
+                const total = data.aiHandled + data.humanHandled;
+                const p = pct(count, total);
+                return (
+                  <div key={label}>
+                    <div className="flex justify-between text-xs mb-1 items-center">
+                      <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                        <span className={`w-2 h-2 rounded-full ${dot}`} />{label}
+                      </span>
+                      <span className={`font-semibold ${text}`}>{count} <span className="text-slate-400 font-normal">({p}%)</span></span>
+                    </div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full ${color} rounded-full`} style={{ width: `${p}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="pt-2 flex items-center gap-2 text-xs text-slate-400 flex-wrap">
+                <Brain className="w-3.5 h-3.5" />
+                {data.sessionCount} sessions · {data.kbCount} KB articles active
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Intent breakdown */}
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <Brain className="w-4 h-4 text-purple-500" />
+                Top Customer Intents
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {data.topIntents.length === 0 ? (
+                <div className="text-center py-6">
+                  <Brain className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                  <p className="text-xs text-slate-400">No intent data yet</p>
+                </div>
+              ) : (
+                <div className="space-y-2 mt-1">
+                  {data.topIntents.map(({ label, count }) => {
+                    const p = pct(count, data.sessionCount);
+                    return (
+                      <div key={label}>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className={cn("capitalize font-medium", INTENT_TEXT[label] ?? "text-slate-600")}>{label}</span>
+                          <span className="text-slate-400">{count} ({p}%)</span>
+                        </div>
+                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div className={cn("h-full rounded-full", INTENT_BAR[label] ?? "bg-slate-400")} style={{ width: `${p}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Agent workload ── */}
+      {data.agents.length > 0 && (
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-slate-500" />
+              Agent Workload
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {data.agents.map((agent) => (
+                <div key={agent.agentId} className="flex items-center gap-2.5 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  <div className="relative flex-shrink-0">
+                    <div className="w-9 h-9 rounded-full bg-slate-300 flex items-center justify-center text-slate-600 text-xs font-bold">
+                      {agent.agentId.slice(0, 2).toUpperCase()}
+                    </div>
+                    <span className={cn(
+                      "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white",
+                      STATUS_DOT[agent.onlineStatus] ?? "bg-slate-300"
+                    )} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-slate-700 capitalize">{agent.onlineStatus}</p>
+                    <p className="text-xs text-slate-400">{agent.activeChatCount} active chat{agent.activeChatCount !== 1 ? "s" : ""}</p>
+                  </div>
+                  {agent.onlineStatus === "online"
+                    ? <Wifi className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                    : <WifiOff className="w-3.5 h-3.5 text-slate-300 flex-shrink-0" />
+                  }
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Per-chatbot table ── */}
+      <Card className="border-slate-200 shadow-sm">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <Bot className="w-4 h-4 text-emerald-500" />
+              Per-Chatbot Breakdown
+            </CardTitle>
+            <Link href="/dashboard/chatbots" className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+              Manage bots →
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {data.botStats.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50/80">
+                    {["Chatbot", "Total", "Open", "Escalated", "Resolved", "Avg Msgs", "Resolution", "Status"].map((h, i) => (
+                      <th key={h} className={`py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider ${i === 0 ? "text-left px-6" : i === 7 ? "text-right px-6" : "text-right px-4"}`}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {data.botStats.map((bot) => {
+                    const avg    = bot.total > 0 ? (bot.messages / bot.total).toFixed(1) : "0";
+                    const resPct = pct(bot.resolved, bot.total);
+                    return (
+                      <tr key={bot.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="px-6 py-3.5">
+                          <Link href={`/dashboard/chatbots/${bot.id}`} className="flex items-center gap-2.5 group">
+                            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: bot.color ?? "#6366f1" }}>
+                              <Bot className="w-3.5 h-3.5 text-white" />
+                            </div>
+                            <span className="font-semibold text-slate-800 group-hover:text-emerald-600 text-sm">{bot.name}</span>
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3.5 text-right font-bold text-slate-900">{bot.total}</td>
+                        <td className="px-4 py-3.5 text-right"><span className="text-emerald-600 font-semibold">{bot.open}</span></td>
+                        <td className="px-4 py-3.5 text-right">
+                          {bot.escalated > 0
+                            ? <span className="inline-flex items-center gap-1 text-red-600 font-semibold"><AlertTriangle className="w-3 h-3" />{bot.escalated}</span>
+                            : <span className="text-slate-300">0</span>}
+                        </td>
+                        <td className="px-4 py-3.5 text-right text-slate-600 font-medium">{bot.resolved}</td>
+                        <td className="px-4 py-3.5 text-right text-slate-500 font-medium">{avg}</td>
+                        <td className="px-4 py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <div className="w-14 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${resPct}%` }} />
+                            </div>
+                            <span className="text-xs text-slate-500 tabular-nums">{resPct}%</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-3.5 text-right">
+                          <span className={cn("text-xs px-2 py-0.5 rounded-full font-semibold", bot.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500")}>
+                            {bot.status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-10 text-center">
+              <Bot className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+              <p className="text-slate-400 text-sm">No chatbot data for this period</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/* ── KPI card inner ── */
+function KpiInner({ s }: { s: { label: string; value: string | number; sub: string; icon: React.ElementType; color: string; bg: string } }) {
+  return (
+    <div className="flex items-start justify-between">
+      <div>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{s.label}</p>
+        <p className="text-3xl font-bold text-slate-900 mt-1 leading-none">{s.value}</p>
+        <p className="text-xs text-slate-400 mt-1">{s.sub}</p>
+      </div>
+      <div className={`w-10 h-10 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}>
+        <s.icon className={`w-5 h-5 ${s.color}`} />
+      </div>
+    </div>
+  );
+}

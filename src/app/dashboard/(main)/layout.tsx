@@ -1,10 +1,12 @@
 import type { ReactNode } from "react";
 import { requireAuth } from "@/lib/auth";
+import { getUserRole } from "@/lib/auth";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { FloatingWidget } from "@/components/floating-widget";
 import { RealtimeNotificationProvider } from "@/components/dashboard/realtime-notification-provider";
+import type { UserRole } from "@/types";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const user = await requireAuth();
@@ -42,6 +44,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   if (!org) redirect("/dashboard/setup");
 
+  // Resolve the user's role for this org
+  const role: UserRole = await getUserRole(user.id, org.id);
+
   // Fetch the org's first active chatbot to show as floating widget
   const { data: orgChatbot } = await serviceClient
     .from("chatbots")
@@ -64,7 +69,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       orgId={org.id}
       initialUnreadCount={unreadCount ?? 0}
     >
-      <DashboardShell user={user} org={org} unreadCount={unreadCount ?? 0}>
+      <DashboardShell user={user} org={org} unreadCount={unreadCount ?? 0} role={role}>
         {children}
         {orgChatbot?.id && <FloatingWidget chatbotId={orgChatbot.id} />}
       </DashboardShell>

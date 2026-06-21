@@ -5,6 +5,78 @@ export interface Organization {
   created_at: string;
 }
 
+/* ─── Role system ─────────────────────────────────────── */
+export type UserRole = "super_admin" | "owner" | "agent" | "guest";
+
+/** Permissions keyed by role */
+export const ROLE_PERMISSIONS: Record<UserRole, {
+  canManageSettings: boolean;
+  canManageTeam: boolean;
+  canViewAllChats: boolean;
+  canAssignChats: boolean;
+  canViewAnalytics: boolean;
+  canViewPurchaseRequests: boolean;
+  canDeleteChatbot: boolean;
+  canCreateChatbot: boolean;
+  roleLabel: string;
+  roleColor: string;
+}> = {
+  super_admin: {
+    canManageSettings: true,
+    canManageTeam: true,
+    canViewAllChats: true,
+    canAssignChats: true,
+    canViewAnalytics: true,
+    canViewPurchaseRequests: true,
+    canDeleteChatbot: true,
+    canCreateChatbot: true,
+    roleLabel: "Super Admin",
+    roleColor: "#f59e0b",
+  },
+  owner: {
+    canManageSettings: true,
+    canManageTeam: true,
+    canViewAllChats: true,
+    canAssignChats: true,
+    canViewAnalytics: true,
+    canViewPurchaseRequests: false,
+    canDeleteChatbot: true,
+    canCreateChatbot: true,
+    roleLabel: "Owner",
+    roleColor: "#0d8585",
+  },
+  agent: {
+    canManageSettings: false,
+    canManageTeam: false,
+    canViewAllChats: true,
+    canAssignChats: true,
+    canViewAnalytics: false,
+    canViewPurchaseRequests: false,
+    canDeleteChatbot: false,
+    canCreateChatbot: false,
+    roleLabel: "Agent",
+    roleColor: "#6366f1",
+  },
+  guest: {
+    canManageSettings: false,
+    canManageTeam: false,
+    canViewAllChats: false,
+    canAssignChats: false,
+    canViewAnalytics: false,
+    canViewPurchaseRequests: false,
+    canDeleteChatbot: false,
+    canCreateChatbot: false,
+    roleLabel: "Guest",
+    roleColor: "#94a3b8",
+  },
+};
+
+export function hasPermission(role: UserRole, permission: keyof typeof ROLE_PERMISSIONS["owner"]): boolean {
+  return ROLE_PERMISSIONS[role][permission] as boolean;
+}
+
+/* ─── Existing types ──────────────────────────────────── */
+
 export interface TeamMember {
   id: string;
   org_id: string;

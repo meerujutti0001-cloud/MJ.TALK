@@ -1,19 +1,27 @@
 import { requireAuth } from "@/lib/auth";
+import { getUserRole } from "@/lib/auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/get-org";
 import { redirect } from "next/navigation";
 import {
   LayoutDashboard, Bot, MessageSquare, AlertTriangle, CheckCircle,
-  TrendingUp, Zap, Clock, Inbox, ArrowRight,
+  TrendingUp, Zap, Clock, Inbox, ArrowRight, ShieldAlert,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { formatRelativeTime } from "@/lib/utils";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: { error?: string };
+}) {
   const user = await requireAuth();
   const orgId = await getOrgId(user.id);
   if (!orgId) redirect("/dashboard/setup");
+
+  const role = await getUserRole(user.id, orgId);
+  const forbidden = searchParams?.error === "forbidden";
 
   const supabase = createServiceClient();
 
@@ -69,6 +77,17 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      {/* Forbidden access banner */}
+      {forbidden && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+          <ShieldAlert className="w-4 h-4 flex-shrink-0 text-red-500" />
+          <span>
+            <strong>Access denied.</strong> You don&apos;t have permission to access that page.
+            {role === "agent" && " Contact your workspace owner to request elevated access."}
+          </span>
+        </div>
+      )}
+
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">

@@ -1,5 +1,7 @@
 import { requireAuth } from "@/lib/auth";
+import { getUserRole } from "@/lib/auth";
 import { createServiceClient } from "@/lib/supabase/server";
+import { getOrgId } from "@/lib/get-org";
 import { PurchaseRequestsList } from "@/components/dashboard/purchase-requests-list";
 import { redirect } from "next/navigation";
 
@@ -10,17 +12,17 @@ export const metadata = {
 
 export default async function PurchaseRequestsPage() {
   const user = await requireAuth();
-  
-  // STRICT: Only allow meerujutti0.001@gmail.com to access purchase requests
-  const ADMIN_EMAIL = "meerujutti0.001@gmail.com";
-  
-  if (user.email !== ADMIN_EMAIL) {
-    redirect("/dashboard");
+  const orgId = await getOrgId(user.id);
+  if (!orgId) redirect("/dashboard/setup");
+
+  // Server-side role guard — only super_admin can access this page
+  const role = await getUserRole(user.id, orgId);
+  if (role !== "super_admin") {
+    redirect("/dashboard?error=forbidden");
   }
 
   const serviceClient = createServiceClient();
 
-  // Fetch all purchase requests
   const { data: purchaseRequests, error } = await serviceClient
     .from("purchase_requests")
     .select("*")
@@ -34,19 +36,13 @@ export default async function PurchaseRequestsPage() {
     <div style={{ padding: "2rem" }}>
       <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
         <div style={{ marginBottom: "2rem" }}>
-          <h1 style={{
-            fontSize: "1.75rem",
-            fontWeight: 700,
-            color: "#0a1628",
-            marginBottom: "0.5rem",
-          }}>
+          <h1 style={{ fontSize: "1.75rem", fontWeight: 700, color: "#0a1628", marginBottom: "0.5rem" }}>
             Purchase Requests
           </h1>
           <p style={{ fontSize: "0.9rem", color: "#5a7878" }}>
             View and manage all Premium and Enterprise plan requests
           </p>
         </div>
-
         <PurchaseRequestsList initialRequests={purchaseRequests || []} />
       </div>
     </div>
