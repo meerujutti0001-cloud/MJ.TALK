@@ -119,6 +119,11 @@ function PremiumCheckout({ plan }: { plan: "premium" }) {
       // Fallback: open in same tab
       window.open(url, "_self");
     }
+    // Show fallback link after 3s in case redirect is blocked
+    setTimeout(() => {
+      setLoading(false);
+      setError(`__STRIPE_URL__${url}`);
+    }, 3000);
   };
 
   return (
@@ -189,8 +194,34 @@ function PremiumCheckout({ plan }: { plan: "premium" }) {
       </div>
 
       {error && (
-        <div style={{ padding: "0.75rem 1rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", color: "#dc2626", fontSize: "0.85rem" }}>
-          {error}
+        <div style={
+          error.startsWith("__STRIPE_URL__") ? {
+            padding: "0.875rem 1rem", background: "#edfaf7",
+            border: "1.5px solid #1dbfa0", borderRadius: "8px", textAlign: "center" as const,
+          } : {
+            padding: "0.75rem 1rem", background: "#fef2f2",
+            border: "1px solid #fecaca", borderRadius: "8px",
+            color: "#dc2626", fontSize: "0.85rem",
+          }
+        }>
+          {error.startsWith("__STRIPE_URL__") ? (
+            <>
+              <p style={{ fontSize: "0.85rem", color: "#0a7070", margin: "0 0 0.5rem" }}>
+                Redirect was blocked. Click below to continue to Stripe:
+              </p>
+              <a
+                href={error.replace("__STRIPE_URL__", "")}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: "0.4rem",
+                  padding: "0.6rem 1.25rem", background: "#0d8585", color: "#fff",
+                  borderRadius: "7px", fontSize: "0.875rem", fontWeight: 700,
+                  textDecoration: "none",
+                }}
+              >
+                Continue to Stripe Checkout →
+              </a>
+            </>
+          ) : error}
         </div>
       )}
 
