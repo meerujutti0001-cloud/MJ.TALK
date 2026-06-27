@@ -57,9 +57,15 @@ function Navbar() {
           >{l.label}</a>
         ))}
         <Link href="/login" style={{
-          fontSize: "0.875rem", fontWeight: 500, color: "#5a7878",
+          fontSize: "0.875rem", fontWeight: 600, color: "#0d8585",
           textDecoration: "none",
-        }}>Sign In</Link>
+          padding: "0.4rem 0.75rem", borderRadius: "6px",
+          border: "1px solid #d4f4ee",
+          transition: "background 0.2s",
+        }}
+          onMouseEnter={e => { e.currentTarget.style.background = "#edfaf7"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+        >Sign In</Link>
         <Link href="/contact" style={{
           fontSize: "0.875rem", fontWeight: 500, color: "#0d8585",
           textDecoration: "none", border: "1.5px solid #1dbfa0",
