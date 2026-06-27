@@ -2,132 +2,68 @@
 
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Suspense, useState, useEffect } from "react";
-import { Check, Loader2, ArrowLeft, ShieldCheck, Zap, Crown, LogIn } from "lucide-react";
+import { Suspense, useState } from "react";
+import { Check, ArrowLeft, ShieldCheck, Zap, Crown } from "lucide-react";
 import { PurchaseForm } from "@/components/purchase/purchase-form";
 
 /* ─── Plan config ─── */
 const PLAN_DETAILS = {
   premium: {
     name: "Growth (Premium)",
-    price: "$29",
-    period: "/month",
-    yearlyPrice: "$290",
-    yearlyPeriod: "/year  (save $58)",
-    badge: "Most Popular",
-    badgeColor: "#0d8585",
+    price: "$29", period: "/month",
+    yearlyPrice: "$290", yearlyPeriod: "/year  (save $58)",
+    badge: "Most Popular", badgeColor: "#0d8585",
     description: "For growing teams that need scale, AI replies, and unlimited chats.",
     features: [
-      "Unlimited chats / month",
-      "Unlimited agent seats",
-      "AI chatbot — 1,000 replies / mo",
-      "Visitor tracking",
-      "Priority support",
-      "Advanced analytics",
+      "Unlimited chats / month", "Unlimited agent seats",
+      "AI chatbot — 1,000 replies / mo", "Visitor tracking",
+      "Priority support", "Advanced analytics",
     ],
   },
   enterprise: {
     name: "Enterprise",
-    price: "Custom",
-    period: "tailored pricing",
-    yearlyPrice: null,
-    yearlyPeriod: null,
-    badge: "Custom",
-    badgeColor: "#6366f1",
+    price: "Custom", period: "tailored pricing",
+    yearlyPrice: null, yearlyPeriod: null,
+    badge: "Custom", badgeColor: "#6366f1",
     description: "Custom infrastructure, SLA, and dedicated support for high-volume teams.",
     features: [
-      "Everything in Growth",
-      "Unlimited AI replies",
-      "White-label widget",
-      "SLA guarantee",
-      "Dedicated account manager",
-      "SSO & advanced security",
+      "Everything in Growth", "Unlimited AI replies",
+      "White-label widget", "SLA guarantee",
+      "Dedicated account manager", "SSO & advanced security",
     ],
   },
 } as const;
 
-/* ─── Premium checkout button ─── */
-function PremiumCheckout({ plan }: { plan: "premium" }) {
-  const router = useRouter();
+/* ─── Premium checkout ─────────────────────────────────────────
+   Uses a plain <a href> to hit the server-side redirect endpoint.
+   No window.location, no fetch, no client-side JS navigation.
+   The server creates the Stripe session and returns a 302.
+──────────────────────────────────────────────────────────────── */
+function PremiumCheckout() {
+  const searchParams = useSearchParams();
+  const serverError = searchParams.get("error");
+  const cancelled   = searchParams.get("cancelled") === "1";
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [signedIn, setSignedIn] = useState<boolean | null>(null); // null = checking
-  const details = PLAN_DETAILS[plan];
-
-  // Check sign-in status on mount
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then(r => r.ok ? r.json() : null)
-      .then(d => setSignedIn(!!(d?.user)))
-      .catch(() => setSignedIn(false));
-  }, []);
-
-  const handleCheckout = async () => {
-    setLoading(true);
-    setError(null);
-
-    let data: { url?: string; error?: string; message?: string } = {};
-    let status = 200;
-    let rawText = "";
-
-    try {
-      const res = await fetch("/api/stripe/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, billingCycle }),
-      });
-      status = res.status;
-      rawText = await res.text();
-      try {
-        data = JSON.parse(rawText);
-      } catch {
-        data = { error: `Server error (${status}): ${rawText.slice(0, 200)}` };
-      }
-    } catch (networkErr) {
-      setError("Network error — please check your connection and try again.");
-      setLoading(false);
-      return;
-    }
-
-    // Handle error responses
-    if (status !== 200 || data.error) {
-      if (data.error === "not_signed_in" || status === 401) {
-        router.push(`/login?next=/purchase/premium`);
-        return;
-      } else if (data.error === "stripe_not_configured" || status === 503) {
-        setError("Online payment is not yet active. Contact support@mjtalk.com to upgrade.");
-      } else {
-        setError(data.error ?? data.message ?? `HTTP ${status}: ${rawText.slice(0, 150)}`);
-      }
-      setLoading(false);
-      return;
-    }
-
-    // Validate URL
-    const url = data.url;
-    if (!url || typeof url !== "string" || !url.startsWith("https://")) {
-      setError(`Unexpected response — url: "${String(url)}", raw: ${rawText.slice(0, 200)}`);
-      setLoading(false);
-      return;
-    }
-
-    // Redirect to Stripe checkout
-    try {
-      window.location.assign(url);
-    } catch {
-      // Fallback: open in same tab
-      window.open(url, "_self");
-    }
-    // Show fallback link after 3s in case redirect is blocked
-    setTimeout(() => {
-      setLoading(false);
-      setError(`__STRIPE_URL__${url}`);
-    }, 3000);
-  };
+  const details = PLAN_DETAILS.premium;
+  const checkoutUrl = `/api/stripe/checkout-redirect?billing=${billingCycle}`;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+
+      {/* Cancelled notice */}
+      {cancelled && (
+        <div style={{ padding: "0.75rem 1rem", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "8px", color: "#92400e", fontSize: "0.85rem" }}>
+          Payment was cancelled. No charge was made.
+        </div>
+      )}
+
+      {/* Server error (redirect failure) */}
+      {serverError && (
+        <div style={{ padding: "0.75rem 1rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", color: "#dc2626", fontSize: "0.85rem" }}>
+          {serverError}
+        </div>
+      )}
+
       {/* Billing cycle toggle */}
       <div style={{ background: "#f8fbfb", borderRadius: "12px", padding: "1.25rem", border: "1px solid #d4f4ee" }}>
         <p style={{ fontSize: "0.8rem", fontWeight: 700, color: "#5a7878", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.75rem" }}>
@@ -147,9 +83,7 @@ function PremiumCheckout({ plan }: { plan: "premium" }) {
                 transition: "all 0.15s",
               }}
             >
-              {cycle === "monthly"
-                ? `Monthly — ${details.price}/mo`
-                : `Yearly — ${details.yearlyPrice}/yr`}
+              {cycle === "monthly" ? `Monthly — ${details.price}/mo` : `Yearly — ${details.yearlyPrice}/yr`}
               {cycle === "yearly" && (
                 <span style={{ display: "block", fontSize: "0.72rem", opacity: 0.85, marginTop: "2px" }}>Save $58</span>
               )}
@@ -157,33 +91,6 @@ function PremiumCheckout({ plan }: { plan: "premium" }) {
           ))}
         </div>
       </div>
-
-      {/* Sign-in notice — shown when not logged in */}
-      {signedIn === false && (
-        <div style={{
-          padding: "0.875rem 1rem", borderRadius: "10px",
-          background: "#fffbeb", border: "1.5px solid #fde68a",
-          display: "flex", alignItems: "center", gap: "0.75rem",
-        }}>
-          <LogIn size={18} color="#d97706" style={{ flexShrink: 0 }} />
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: "0.85rem", fontWeight: 600, color: "#92400e", margin: 0 }}>
-              Sign in required to purchase
-            </p>
-            <p style={{ fontSize: "0.78rem", color: "#a16207", margin: "2px 0 0" }}>
-              You need a MJ.TALK account to subscribe.
-            </p>
-          </div>
-          <Link href="/login?next=/purchase/premium" style={{
-            padding: "0.45rem 1rem", borderRadius: "7px",
-            background: "#d97706", color: "#fff",
-            fontSize: "0.78rem", fontWeight: 700, textDecoration: "none",
-            flexShrink: 0,
-          }}>
-            Sign In
-          </Link>
-        </div>
-      )}
 
       {/* Security note */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.75rem 1rem", background: "#edfaf7", borderRadius: "8px", border: "1px solid #d4f4ee" }}>
@@ -193,75 +100,45 @@ function PremiumCheckout({ plan }: { plan: "premium" }) {
         </span>
       </div>
 
-      {error && (
-        <div style={
-          error.startsWith("__STRIPE_URL__") ? {
-            padding: "0.875rem 1rem", background: "#edfaf7",
-            border: "1.5px solid #1dbfa0", borderRadius: "8px", textAlign: "center" as const,
-          } : {
-            padding: "0.75rem 1rem", background: "#fef2f2",
-            border: "1px solid #fecaca", borderRadius: "8px",
-            color: "#dc2626", fontSize: "0.85rem",
-          }
-        }>
-          {error.startsWith("__STRIPE_URL__") ? (
-            <>
-              <p style={{ fontSize: "0.85rem", color: "#0a7070", margin: "0 0 0.5rem" }}>
-                Redirect was blocked. Click below to continue to Stripe:
-              </p>
-              <a
-                href={error.replace("__STRIPE_URL__", "")}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: "0.4rem",
-                  padding: "0.6rem 1.25rem", background: "#0d8585", color: "#fff",
-                  borderRadius: "7px", fontSize: "0.875rem", fontWeight: 700,
-                  textDecoration: "none",
-                }}
-              >
-                Continue to Stripe Checkout →
-              </a>
-            </>
-          ) : error}
-        </div>
-      )}
-
-      <button
-        onClick={handleCheckout}
-        disabled={loading}
+      {/* Subscribe — plain anchor, server creates session + 302 → Stripe */}
+      <a
+        href={checkoutUrl}
         style={{
-          width: "100%", padding: "0.9rem", borderRadius: "10px", border: "none",
-          background: loading ? "#8aa3a3" : "linear-gradient(135deg,#0d8585,#14a085)",
-          color: "#fff", fontSize: "0.95rem", fontWeight: 700, cursor: loading ? "not-allowed" : "pointer",
+          width: "100%", padding: "0.9rem", borderRadius: "10px",
+          background: "linear-gradient(135deg,#0d8585,#14a085)",
+          color: "#fff", fontSize: "0.95rem", fontWeight: 700,
           display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
+          textDecoration: "none", boxSizing: "border-box" as const,
           transition: "opacity 0.15s",
         }}
+        onMouseEnter={e => (e.currentTarget.style.opacity = "0.9")}
+        onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
       >
-        {loading ? (
-          <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Redirecting to Stripe…</>
-        ) : (
-          <><Zap size={16} /> Subscribe — {billingCycle === "monthly" ? "$29/mo" : "$290/yr"}</>
-        )}
-      </button>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        <Zap size={16} />
+        Subscribe — {billingCycle === "monthly" ? "$29/mo" : "$290/yr"}
+      </a>
+
+      <p style={{ fontSize: "0.75rem", color: "#8aa3a3", textAlign: "center" as const }}>
+        Clicking Subscribe redirects you to Stripe to complete payment securely.
+      </p>
     </div>
   );
 }
 
 /* ─── Main page ─── */
 function PurchaseContent() {
-  const params = useParams();
-  const router = useRouter();
+  const params      = useParams();
+  const router      = useRouter();
   const searchParams = useSearchParams();
-  const cancelled = searchParams.get("cancelled") === "1";
   const plan = params.plan as "premium" | "enterprise";
 
   if (plan !== "premium" && plan !== "enterprise") {
     return <div style={{ padding: "4rem", textAlign: "center" }}>Invalid plan. <Link href="/">Go home</Link></div>;
   }
 
-  const details = PLAN_DETAILS[plan];
+  const details  = PLAN_DETAILS[plan];
+  const cancelled = searchParams.get("cancelled") === "1";
 
-  // Check if user is signed in for premium (client-side quick check)
   const handleEnterpriseSubmit = async (data: Record<string, unknown>) => {
     const res = await fetch("/api/enterprise/inquiry", {
       method: "POST",
@@ -278,6 +155,7 @@ function PurchaseContent() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f8fbfb" }}>
+
       {/* Header */}
       <div style={{ background: "#fff", borderBottom: "1px solid #d4f4ee", padding: "1rem 2.5rem" }}>
         <div style={{ maxWidth: "1200px", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -290,16 +168,17 @@ function PurchaseContent() {
         </div>
       </div>
 
-      {cancelled && (
+      {/* Cancelled banner */}
+      {cancelled && plan !== "premium" && (
         <div style={{ background: "#fffbeb", borderBottom: "1px solid #fde68a", padding: "0.75rem 2.5rem", textAlign: "center", fontSize: "0.875rem", color: "#92400e" }}>
-          Payment was cancelled. No charge was made. You can try again below.
+          Payment was cancelled. No charge was made.
         </div>
       )}
 
       <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "3rem 2rem" }}>
         <div style={{ display: "grid", gridTemplateColumns: plan === "premium" ? "1fr 1fr" : "2fr 1fr", gap: "2rem", alignItems: "start" }}>
 
-          {/* Left — Form or Checkout */}
+          {/* Left panel */}
           <div style={{ background: "#fff", borderRadius: "14px", padding: "2.5rem", border: "1px solid #d4f4ee", boxShadow: "0 2px 16px rgba(13,133,133,0.06)" }}>
             <div style={{ marginBottom: "2rem" }}>
               <span style={{ display: "inline-block", fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: details.badgeColor, background: `${details.badgeColor}18`, padding: "3px 10px", borderRadius: "999px", marginBottom: "0.75rem" }}>
@@ -312,17 +191,13 @@ function PurchaseContent() {
             </div>
 
             {plan === "premium" ? (
-              <PremiumCheckout plan="premium" />
+              <PremiumCheckout />
             ) : (
-              <PurchaseForm
-                plan="enterprise"
-                onSubmit={handleEnterpriseSubmit}
-                onBack={() => router.push("/")}
-              />
+              <PurchaseForm plan="enterprise" onSubmit={handleEnterpriseSubmit} onBack={() => router.push("/")} />
             )}
           </div>
 
-          {/* Right — Order summary */}
+          {/* Right panel — order summary */}
           <div style={{ background: "#fff", borderRadius: "14px", padding: "2rem", border: "1px solid #d4f4ee", position: "sticky", top: "1.5rem" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1.25rem" }}>
               {plan === "premium" ? <Zap size={18} color="#0d8585" /> : <Crown size={18} color="#6366f1" />}
