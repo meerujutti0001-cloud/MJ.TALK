@@ -69,6 +69,7 @@ function PremiumCheckout({ plan }: { plan: "premium" }) {
 
     let data: { url?: string; error?: string; message?: string } = {};
     let status = 200;
+    let rawText = "";
 
     try {
       const res = await fetch("/api/stripe/checkout", {
@@ -77,8 +78,13 @@ function PremiumCheckout({ plan }: { plan: "premium" }) {
         body: JSON.stringify({ plan, billingCycle }),
       });
       status = res.status;
-      data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    } catch {
+      rawText = await res.text();
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        data = { error: `Server error (${status}): ${rawText.slice(0, 200)}` };
+      }
+    } catch (networkErr) {
       setError("Network error — please check your connection and try again.");
       setLoading(false);
       return;
@@ -87,27 +93,25 @@ function PremiumCheckout({ plan }: { plan: "premium" }) {
     // Handle error responses
     if (status !== 200 || data.error) {
       if (data.error === "not_signed_in" || status === 401) {
-        // Redirect to login with return URL
         router.push(`/login?next=/purchase/premium`);
         return;
       } else if (data.error === "stripe_not_configured" || status === 503) {
         setError("Online payment is not yet active. Contact support@mjtalk.com to upgrade.");
       } else {
-        setError(data.error ?? data.message ?? `Error ${status} — please try again.`);
+        setError(data.error ?? data.message ?? `HTTP ${status}: ${rawText.slice(0, 150)}`);
       }
       setLoading(false);
       return;
     }
 
-    // Validate URL before navigating
+    // Validate URL
     const url = data.url;
     if (!url || typeof url !== "string" || !url.startsWith("https://")) {
-      setError(`Received invalid checkout URL: "${url}". Please contact support.`);
+      setError(`Unexpected response — url: "${url}", raw: ${rawText.slice(0, 200)}`);
       setLoading(false);
       return;
     }
 
-    // Redirect to Stripe
     window.location.assign(url);
   };
 

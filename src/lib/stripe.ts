@@ -66,5 +66,5 @@ export function getPlanById(id: string): PlanId {
 
 /** Returns true if Stripe is configured in this environment */
 export function isStripeConfigured(): boolean {
-  return !!process.env.STRIPE_SECRET_KEY && !!process.env.STRIPE_PREMIUM_PRICE_ID;
+  return !!(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PREMIUM_PRICE_ID);
 }
