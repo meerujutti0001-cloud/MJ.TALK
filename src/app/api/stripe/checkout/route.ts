@@ -50,8 +50,7 @@ export async function POST(req: NextRequest) {
       apiVersion: "2025-02-24.acacia",
     });
 
-    // 5. Create checkout session — minimal, no customer lookup
-    //    customer_email pre-fills the form
+    // 5. Create checkout session
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer_email: user.email ?? undefined,
