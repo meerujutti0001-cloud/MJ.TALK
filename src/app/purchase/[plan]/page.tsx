@@ -2,8 +2,8 @@
 
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Suspense, useState } from "react";
-import { Check, Loader2, ArrowLeft, ShieldCheck, Zap, Crown } from "lucide-react";
+import { Suspense, useState, useEffect } from "react";
+import { Check, Loader2, ArrowLeft, ShieldCheck, Zap, Crown, LogIn } from "lucide-react";
 import { PurchaseForm } from "@/components/purchase/purchase-form";
 
 /* ─── Plan config ─── */
@@ -48,10 +48,20 @@ const PLAN_DETAILS = {
 
 /* ─── Premium checkout button ─── */
 function PremiumCheckout({ plan }: { plan: "premium" }) {
+  const router = useRouter();
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null); // null = checking
   const details = PLAN_DETAILS[plan];
+
+  // Check sign-in status on mount
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setSignedIn(!!(d?.user)))
+      .catch(() => setSignedIn(false));
+  }, []);
 
   const handleCheckout = async () => {
     setLoading(true);
@@ -77,7 +87,9 @@ function PremiumCheckout({ plan }: { plan: "premium" }) {
     // Handle error responses
     if (status !== 200 || data.error) {
       if (data.error === "not_signed_in" || status === 401) {
-        setError("Please sign in to your MJ.TALK account first.");
+        // Redirect to login with return URL
+        router.push(`/login?next=/purchase/premium`);
+        return;
       } else if (data.error === "stripe_not_configured" || status === 503) {
         setError("Online payment is not yet active. Contact support@mjtalk.com to upgrade.");
       } else {
@@ -131,6 +143,33 @@ function PremiumCheckout({ plan }: { plan: "premium" }) {
         </div>
       </div>
 
+      {/* Sign-in notice — shown when not logged in */}
+      {signedIn === false && (
+        <div style={{
+          padding: "0.875rem 1rem", borderRadius: "10px",
+          background: "#fffbeb", border: "1.5px solid #fde68a",
+          display: "flex", alignItems: "center", gap: "0.75rem",
+        }}>
+          <LogIn size={18} color="#d97706" style={{ flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: "0.85rem", fontWeight: 600, color: "#92400e", margin: 0 }}>
+              Sign in required to purchase
+            </p>
+            <p style={{ fontSize: "0.78rem", color: "#a16207", margin: "2px 0 0" }}>
+              You need a MJ.TALK account to subscribe.
+            </p>
+          </div>
+          <Link href="/login?next=/purchase/premium" style={{
+            padding: "0.45rem 1rem", borderRadius: "7px",
+            background: "#d97706", color: "#fff",
+            fontSize: "0.78rem", fontWeight: 700, textDecoration: "none",
+            flexShrink: 0,
+          }}>
+            Sign In
+          </Link>
+        </div>
+      )}
+
       {/* Security note */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.75rem 1rem", background: "#edfaf7", borderRadius: "8px", border: "1px solid #d4f4ee" }}>
         <ShieldCheck size={16} color="#0d8585" />
@@ -181,6 +220,7 @@ function PurchaseContent() {
 
   const details = PLAN_DETAILS[plan];
 
+  // Check if user is signed in for premium (client-side quick check)
   const handleEnterpriseSubmit = async (data: Record<string, unknown>) => {
     const res = await fetch("/api/enterprise/inquiry", {
       method: "POST",
