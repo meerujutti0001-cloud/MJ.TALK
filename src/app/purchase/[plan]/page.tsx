@@ -56,32 +56,47 @@ function PremiumCheckout({ plan }: { plan: "premium" }) {
   const handleCheckout = async () => {
     setLoading(true);
     setError(null);
+
+    let data: { url?: string; error?: string; message?: string } = {};
+    let status = 200;
+
     try {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan, billingCycle }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        // Handle "not configured" case specially
-        if (data.error === "stripe_not_configured" || res.status === 503) {
-          setError("Online payment is not yet active. Please contact support@mjtalk.com to upgrade your plan.");
-        } else if (data.error === "You must be signed in to purchase a plan") {
-          setError("Please sign in to your MJ.TALK account before purchasing.");
-        } else {
-          // Show actual error so configuration issues are visible
-          setError(data.error ?? "Checkout failed. Please try again.");
-        }
-        setLoading(false);
-        return;
-      }
-      if (!data.url) throw new Error("No checkout URL received from Stripe");
-      window.location.href = data.url;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      status = res.status;
+      data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    } catch {
+      setError("Network error — please check your connection and try again.");
       setLoading(false);
+      return;
     }
+
+    // Handle error responses
+    if (status !== 200 || data.error) {
+      if (data.error === "not_signed_in" || status === 401) {
+        setError("Please sign in to your MJ.TALK account first.");
+      } else if (data.error === "stripe_not_configured" || status === 503) {
+        setError("Online payment is not yet active. Contact support@mjtalk.com to upgrade.");
+      } else {
+        setError(data.error ?? data.message ?? `Error ${status} — please try again.`);
+      }
+      setLoading(false);
+      return;
+    }
+
+    // Validate URL before navigating
+    const url = data.url;
+    if (!url || typeof url !== "string" || !url.startsWith("https://")) {
+      setError(`Received invalid checkout URL: "${url}". Please contact support.`);
+      setLoading(false);
+      return;
+    }
+
+    // Redirect to Stripe
+    window.location.assign(url);
   };
 
   return (
