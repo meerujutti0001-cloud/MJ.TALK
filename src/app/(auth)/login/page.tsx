@@ -1,15 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Loader2 } from "lucide-react";
 
-export default function LoginPage() {
+/* ── inner component uses useSearchParams — must be inside Suspense ── */
+function LoginForm() {
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const nextUrl = searchParams.get("next") ?? "/dashboard";
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,7 +23,6 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      // Auto-fix unconfirmed accounts (stuck from old signup flow)
       if (error.message.toLowerCase().includes("email not confirmed")) {
         const fixRes = await fetch("/api/auth/confirm-and-login", {
           method: "POST",
@@ -27,12 +30,8 @@ export default function LoginPage() {
           body: JSON.stringify({ email }),
         });
         if (fixRes.ok) {
-          // Retry login after confirming
           const { error: retryError } = await supabase.auth.signInWithPassword({ email, password });
-          if (!retryError) {
-            window.location.href = "/dashboard";
-            return;
-          }
+          if (!retryError) { window.location.href = nextUrl; return; }
           setError(retryError.message);
         } else {
           setError("Could not confirm account. Please contact support.");
@@ -43,7 +42,7 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    window.location.href = "/dashboard";
+    window.location.href = nextUrl;
   };
 
   return (
@@ -53,28 +52,26 @@ export default function LoginPage() {
       background: "linear-gradient(135deg, #0a0f1e 0%, #0d1b3e 50%, #122157 100%)",
       fontFamily: "'Inter', sans-serif",
     }}>
-      {/* Glow */}
       <div style={{ position: "fixed", inset: 0, pointerEvents: "none", background: "radial-gradient(ellipse 60% 60% at 30% 70%, rgba(29,191,160,0.08) 0%, transparent 60%)" }} />
 
       <div style={{ width: "100%", maxWidth: "420px", position: "relative" }}>
-        {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: "2rem" }}>
-          <div style={{ fontFamily: "Inter, system-ui, sans-serif", letterSpacing: "-0.02em", fontWeight: 800, fontSize: "1.8rem", color: "#fff" }}>
+          <Link href="/" style={{ fontFamily: "Inter, system-ui, sans-serif", letterSpacing: "-0.02em", fontWeight: 800, fontSize: "1.8rem", color: "#fff", textDecoration: "none" }}>
             MJ<span style={{ color: "#1dbfa0" }}>.</span>TALK
-          </div>
+          </Link>
           <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.875rem", marginTop: "0.25rem" }}>Sign in to your dashboard</p>
         </div>
 
-        {/* Card */}
-        <div style={{
-          background: "rgba(255,255,255,0.05)",
-          border: "1px solid rgba(255,255,255,0.12)",
-          borderRadius: "16px",
-          padding: "2rem",
-          backdropFilter: "blur(12px)",
-        }}>
+        <div style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "16px", padding: "2rem", backdropFilter: "blur(12px)" }}>
           <h1 style={{ fontFamily: "Inter, system-ui, sans-serif", letterSpacing: "-0.04em", fontSize: "1.4rem", fontWeight: 700, color: "#fff", marginBottom: "0.25rem" }}>Welcome back</h1>
           <p style={{ fontSize: "0.875rem", color: "rgba(255,255,255,0.5)", marginBottom: "1.5rem" }}>Sign in to your account to continue</p>
+
+          {/* Return-to notice */}
+          {searchParams.get("next") && (
+            <div style={{ background: "rgba(29,191,160,0.1)", border: "1px solid rgba(29,191,160,0.25)", color: "#4dd4b8", fontSize: "0.8rem", padding: "0.65rem 1rem", borderRadius: "8px", marginBottom: "1.25rem" }}>
+              Sign in to continue to <strong>{searchParams.get("next")}</strong>
+            </div>
+          )}
 
           {error && (
             <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#fca5a5", fontSize: "0.875rem", padding: "0.75rem 1rem", borderRadius: "8px", marginBottom: "1.25rem" }}>
@@ -93,7 +90,6 @@ export default function LoginPage() {
                 onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.15)")}
               />
             </div>
-
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
                 <label style={{ fontSize: "0.8rem", fontWeight: 500, color: "rgba(255,255,255,0.7)" }}>Password</label>
@@ -107,12 +103,11 @@ export default function LoginPage() {
                 onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.15)")}
               />
             </div>
-
             <button type="submit" disabled={loading} style={{
               width: "100%", padding: "0.75rem", borderRadius: "8px",
               background: loading ? "#0a7070" : "#0d8585",
-              color: "#fff", fontWeight: 700, fontSize: "0.95rem",
-              border: "none", cursor: loading ? "not-allowed" : "pointer",
+              color: "#fff", fontWeight: 700, fontSize: "0.95rem", border: "none",
+              cursor: loading ? "not-allowed" : "pointer",
               display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
               transition: "background 0.2s", marginTop: "0.5rem",
             }}
@@ -139,3 +134,10 @@ export default function LoginPage() {
   );
 }
 
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: "100vh", background: "#0a0f1e" }} />}>
+      <LoginForm />
+    </Suspense>
+  );
+}

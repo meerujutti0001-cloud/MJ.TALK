@@ -107,12 +107,18 @@ function PremiumCheckout({ plan }: { plan: "premium" }) {
     // Validate URL
     const url = data.url;
     if (!url || typeof url !== "string" || !url.startsWith("https://")) {
-      setError(`Unexpected response — url: "${url}", raw: ${rawText.slice(0, 200)}`);
+      setError(`Unexpected response — url: "${String(url)}", raw: ${rawText.slice(0, 200)}`);
       setLoading(false);
       return;
     }
 
-    window.location.assign(url);
+    // Redirect to Stripe checkout
+    try {
+      window.location.assign(url);
+    } catch {
+      // Fallback: open in same tab
+      window.open(url, "_self");
+    }
   };
 
   return (

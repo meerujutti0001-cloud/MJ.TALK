@@ -28,28 +28,29 @@ const nextConfig: NextConfig = {
         headers: [
           { key: "X-Frame-Options",              value: "ALLOWALL" },
           { key: "Content-Security-Policy",       value: "frame-ancestors *" },
-          // No-cache so the widget always gets fresh chatbot config
           { key: "Cache-Control",                 value: "no-store" },
+        ],
+      },
+      {
+        // Purchase pages — never cache (Stripe flow must be fresh)
+        source: "/purchase/:path*",
+        headers: [
+          { key: "Cache-Control", value: "no-store, no-cache, must-revalidate" },
+          { key: "Pragma",        value: "no-cache" },
         ],
       },
       {
         // Static assets - aggressive caching
         source: "/:all*(svg|jpg|jpeg|png|gif|ico|webp|avif|woff|woff2)",
         headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
-          },
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
         ],
       },
       {
         // API routes - no cache
         source: "/api/:path*",
         headers: [
-          {
-            key: "Cache-Control",
-            value: "no-store, max-age=0",
-          },
+          { key: "Cache-Control", value: "no-store, max-age=0" },
         ],
       },
     ];
