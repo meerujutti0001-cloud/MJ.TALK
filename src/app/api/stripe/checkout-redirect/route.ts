@@ -9,7 +9,10 @@ import { createClient } from "@/lib/supabase/server";
  */
 export async function GET(req: NextRequest) {
   const billing = req.nextUrl.searchParams.get("billing") ?? "monthly";
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://mj-talk.vercel.app";
+
+  // Use the incoming request origin — works even if NEXT_PUBLIC_APP_URL is not set
+  const origin = req.nextUrl.origin;
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? origin).replace(/\/$/, "");
 
   // Auth check
   const supabase = await createClient();
