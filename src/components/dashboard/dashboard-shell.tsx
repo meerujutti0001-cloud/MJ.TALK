@@ -6,9 +6,9 @@ import { useState } from "react";
 import {
   LayoutDashboard, Bot, MessageSquare, BarChart2, Users,
   Bell, Settings, LogOut, Menu, X, LifeBuoy, ShoppingCart,
-  BookOpen, Shield, Crown, User, Zap,
+  BookOpen, Shield, Crown, User,
 } from "lucide-react";
-import { cn, getInitials } from "@/lib/utils";
+import { getInitials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { useNotificationContext } from "@/components/dashboard/realtime-notification-provider";
@@ -322,29 +322,44 @@ export function DashboardShell({ children, user, org, unreadCount: _initialUnrea
             background: C.sidebarBg, borderBottom: `1px solid ${C.sidebarBorder}`, flexShrink: 0,
           }}
         >
+          {/* Hamburger — full white so it's visible on dark */}
           <button
             onClick={() => setSidebarOpen(true)}
-            style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim }}
+            style={{ background: "none", border: "none", cursor: "pointer", color: C.textBright, padding: "4px", display: "flex", alignItems: "center" }}
           >
-            <Menu size={20} />
+            <Menu size={22} />
           </button>
+
+          {/* Logo */}
           <span style={{
             fontFamily: "Inter, system-ui, sans-serif", letterSpacing: "-0.04em",
-            fontWeight: 800, fontSize: "1.1rem", color: C.textBright,
+            fontWeight: 800, fontSize: "1.15rem", color: C.textBright,
           }}>
             MJ<span style={{ color: C.accent }}>.</span>TALK
           </span>
-          {unreadCount > 0 && (
-            <Link href="/dashboard/notifications" style={{ marginLeft: "auto" }}>
+
+          {/* Spacer */}
+          <div style={{ flex: 1 }} />
+
+          {/* Notification bell — always visible */}
+          <Link
+            href="/dashboard/notifications"
+            style={{ position: "relative", display: "flex", alignItems: "center", padding: "4px" }}
+          >
+            <Bell size={20} color={C.textMid} />
+            {unreadCount > 0 && (
               <span style={{
+                position: "absolute", top: 0, right: 0,
                 background: "#ef4444", color: "#fff",
-                fontSize: "0.7rem", fontWeight: 700,
-                borderRadius: "999px", padding: "2px 8px",
+                fontSize: "0.6rem", fontWeight: 700,
+                borderRadius: "999px", minWidth: "16px", height: "16px",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                padding: "0 3px", border: `1.5px solid ${C.sidebarBg}`,
               }}>
-                {unreadCount}
+                {unreadCount > 9 ? "9+" : unreadCount}
               </span>
-            </Link>
-          )}
+            )}
+          </Link>
         </header>
 
         <main style={{ flex: 1, overflowY: "auto" }}>{children}</main>
