@@ -54,11 +54,11 @@ function renderMarkdown(text: string): string {
     .replace(/\n/g, "<br/>");
 }
 
-/* ─── status config ─── */
+/* ─── status config — tawk.to style badges ─── */
 const STATUS = {
-  open:      { color: "bg-emerald-100 text-emerald-700 border-emerald-200", dot: "bg-emerald-500",  label: "Open",      ring: "ring-emerald-400" },
-  escalated: { color: "bg-red-100 text-red-700 border-red-200",             dot: "bg-red-500",      label: "Escalated", ring: "ring-red-400" },
-  resolved:  { color: "bg-slate-100 text-slate-500 border-slate-200",       dot: "bg-slate-400",    label: "Resolved",  ring: "ring-slate-300" },
+  open:      { color: "bg-emerald-100 text-emerald-700 border-emerald-200",  dot: "bg-emerald-500",  label: "Open",      ring: "ring-emerald-400" },
+  escalated: { color: "bg-red-100 text-red-600 border-red-200",              dot: "bg-red-500",      label: "Escalated", ring: "ring-red-400" },
+  resolved:  { color: "bg-slate-100 text-slate-500 border-slate-200",        dot: "bg-slate-400",    label: "Resolved",  ring: "ring-slate-300" },
 };
 
 /* ─── priority config ─── */
@@ -619,32 +619,32 @@ export function ConversationInbox({
                           </span>
                         </div>
 
-                        {/* Line 2: sub-info + status badge */}
-                        <div className="flex items-center justify-between gap-1">
+                        {/* Line 2: email + status badge */}
+                        <div className="flex items-center justify-between gap-1 mb-1">
                           <span className="text-xs text-slate-500 truncate">{subLine}</span>
                           <span className={cn(
-                            "text-xs px-1.5 py-0.5 rounded font-semibold flex-shrink-0 border leading-none",
+                            "text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 border leading-none",
                             st.color
                           )}>
                             {st.label}
                           </span>
                         </div>
 
-                        {/* Line 3: priority if not low, or unassigned */}
-                        {(prio && conv.priority !== "low") || (!conv.assigned_agent_id && conv.status !== "resolved") ? (
-                          <div className="flex items-center gap-2 mt-1">
-                            {prio && conv.priority !== "low" && (
-                              <span className={cn("text-xs font-semibold flex items-center gap-0.5", prio.color)}>
-                                <Zap className="w-3 h-3" />{prio.label}
-                              </span>
-                            )}
-                            {!conv.assigned_agent_id && conv.status !== "resolved" && (
-                              <span className="text-xs text-slate-400 flex items-center gap-0.5">
-                                <User className="w-3 h-3" />Unassigned
-                              </span>
-                            )}
-                          </div>
-                        ) : null}
+                        {/* Line 3: priority + unassigned — exactly like screenshot */}
+                        <div className="flex items-center gap-2.5">
+                          {prio && conv.priority !== "low" && (
+                            <span className={cn("text-xs font-semibold flex items-center gap-0.5", prio.color)}>
+                              <Zap className="w-3 h-3" />
+                              {prio.label}
+                            </span>
+                          )}
+                          {!conv.assigned_agent_id && conv.status !== "resolved" && (
+                            <span className="text-xs text-slate-400 flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              Unassigned
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </button>
