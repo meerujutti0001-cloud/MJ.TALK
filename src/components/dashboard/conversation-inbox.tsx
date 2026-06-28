@@ -559,62 +559,87 @@ export function ConversationInbox({
             <div className="divide-y divide-slate-50">
               {filtered.map((conv) => {
                 const isActive = selected?.id === conv.id;
-                const chatbot = chatbots.find((b) => b.id === conv.chatbot_id);
-                const st = STATUS[conv.status as keyof typeof STATUS] ?? STATUS.open;
+                const chatbot  = chatbots.find((b) => b.id === conv.chatbot_id);
+                const st   = STATUS[conv.status as keyof typeof STATUS] ?? STATUS.open;
                 const prio = conv.priority ? PRIORITY[conv.priority as keyof typeof PRIORITY] : null;
+
                 return (
                   <button
                     key={conv.id}
                     onClick={() => selectConversation(conv)}
                     className={cn(
-                      "w-full text-left px-4 py-3.5 transition-all group relative",
-                      isActive ? "bg-emerald-50 border-r-[3px] border-emerald-500" : "hover:bg-slate-50"
+                      "w-full text-left px-4 py-3 transition-all",
+                      isActive ? "bg-emerald-50 border-r-[3px] border-emerald-500" : "hover:bg-slate-50/80"
                     )}
                   >
-                    {conv.status === "escalated" && (
-                      <span className="absolute top-3.5 right-3.5 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                    )}
-                    <div className="flex items-start gap-3">
-                      <div className="relative flex-shrink-0">
-                        <Avatar className="h-9 w-9">
-                          <AvatarFallback className="text-white text-xs font-semibold"
-                            style={{ background: chatbot?.widget_color ?? "#6366f1" }}>
-                            {getInitials(conv.visitor_name ?? "?")}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className={cn("absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white", st.dot)} />
+                    <div className="flex gap-3 items-start">
+
+                      {/* ── Avatar with status dot ── */}
+                      <div className="relative flex-shrink-0 mt-0.5">
+                        <div
+                          className="w-11 h-11 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm"
+                          style={{ background: chatbot?.widget_color ?? "#0d8585" }}
+                        >
+                          {(conv.visitor_name ?? "?")[0].toUpperCase()}
+                        </div>
+                        {/* Status dot — bottom-left, like the reference */}
+                        <span className={cn(
+                          "absolute -bottom-0.5 -left-0.5 w-3.5 h-3.5 rounded-full border-2 border-white",
+                          st.dot
+                        )} />
                       </div>
+
+                      {/* ── Content ── */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-1 mb-0.5">
-                          <span className="text-sm font-semibold text-slate-800 truncate">
+
+                        {/* Row 1: name + time */}
+                        <div className="flex items-baseline justify-between gap-2 mb-0.5">
+                          <span className={cn(
+                            "text-sm font-bold truncate",
+                            isActive ? "text-emerald-800" : "text-slate-900"
+                          )}>
                             {conv.visitor_name ?? "Anonymous"}
                           </span>
                           <span className="text-xs text-slate-400 flex-shrink-0 tabular-nums">
                             {formatRelativeTime(conv.updated_at)}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <Bot className="w-3 h-3 text-slate-300 flex-shrink-0" />
-                          <span className="text-xs text-slate-500 truncate flex-1">{chatbot?.name ?? "Unknown bot"}</span>
-                          <span className={cn("text-xs px-1.5 py-0.5 rounded-full border font-medium flex-shrink-0", st.color)}>
+
+                        {/* Row 2: chatbot name + status badge */}
+                        <div className="flex items-center justify-between gap-2 mb-0.5">
+                          <span className="text-xs text-slate-500 flex items-center gap-1 truncate">
+                            <Bot className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                            {chatbot?.name ?? "Bot"}
+                          </span>
+                          <span className={cn(
+                            "text-xs px-2 py-0.5 rounded-full font-semibold border flex-shrink-0",
+                            st.color
+                          )}>
                             {st.label}
                           </span>
                         </div>
+
+                        {/* Row 3: email */}
                         {conv.visitor_email && (
-                          <p className="text-xs text-slate-400 truncate mt-0.5 flex items-center gap-1">
-                            <Mail className="w-2.5 h-2.5 flex-shrink-0" />{conv.visitor_email}
-                          </p>
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <Mail className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                            <span className="text-xs text-slate-400 truncate">{conv.visitor_email}</span>
+                          </div>
                         )}
-                        {prio && conv.priority !== "low" && (
-                          <span className={cn("mt-0.5 inline-flex items-center gap-0.5 text-xs font-semibold", prio.color)}>
-                            <Zap className="w-2.5 h-2.5" />{prio.label}
-                          </span>
-                        )}
-                        {!conv.assigned_agent_id && conv.status === "open" && (
-                          <span className="mt-0.5 inline-flex items-center gap-0.5 text-xs text-slate-400">
-                            <User className="w-2.5 h-2.5" />Unassigned
-                          </span>
-                        )}
+
+                        {/* Row 4: priority + unassigned */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {prio && (
+                            <span className={cn("text-xs font-semibold flex items-center gap-0.5", prio.color)}>
+                              <Zap className="w-3 h-3" />{prio.label}
+                            </span>
+                          )}
+                          {!conv.assigned_agent_id && conv.status !== "resolved" && (
+                            <span className="text-xs text-slate-400 flex items-center gap-0.5">
+                              <User className="w-3 h-3" />Unassigned
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </button>
