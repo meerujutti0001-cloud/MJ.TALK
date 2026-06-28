@@ -568,72 +568,58 @@ export function ConversationInbox({
               {filtered.map((conv) => {
                 const isActive = selected?.id === conv.id;
                 const chatbot  = chatbots.find((b) => b.id === conv.chatbot_id);
-                const st       = STATUS[conv.status as keyof typeof STATUS] ?? STATUS.open;
                 const prio     = conv.priority ? PRIORITY[conv.priority as keyof typeof PRIORITY] : null;
-
-                /* Left border color by status — tawk.to pattern */
-                const leftBorderClass =
-                  conv.status === "escalated" ? "border-l-red-500" :
-                  conv.status === "resolved"  ? "border-l-slate-300" :
-                                                "border-l-emerald-500";
-
-                /* Second line: email or bot name as preview */
-                const subLine = conv.visitor_email ?? chatbot?.name ?? "Support bot";
 
                 return (
                   <button
                     key={conv.id}
                     onClick={() => selectConversation(conv)}
                     className={cn(
-                      "w-full text-left border-l-[3px] transition-colors",
-                      leftBorderClass,
-                      isActive
-                        ? "bg-emerald-50"
-                        : "bg-white hover:bg-slate-50",
-                      !isActive && "border-b border-slate-100"
+                      "w-full text-left transition-colors border-b border-slate-100",
+                      isActive ? "bg-emerald-50" : "bg-white hover:bg-slate-50"
                     )}
                   >
-                    <div className="flex items-center gap-2.5 px-3 py-3">
+                    <div className="flex items-center gap-3 px-4 py-3.5">
 
-                      {/* Avatar */}
-                      <div
-                        className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-white text-sm font-bold"
-                        style={{ background: chatbot?.widget_color ?? "#0d8585" }}
-                      >
-                        {(conv.visitor_name ?? "?")[0].toUpperCase()}
+                      {/* Avatar with status dot (tawk.to style) */}
+                      <div className="relative flex-shrink-0">
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold"
+                          style={{ background: chatbot?.widget_color ?? "#0d8585" }}
+                        >
+                          {(conv.visitor_name ?? "?")[0].toUpperCase()}
+                        </div>
+                        {/* Status dot — bottom right on avatar */}
+                        <span className={cn(
+                          "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white",
+                          conv.status === "escalated" ? "bg-red-500" :
+                          conv.status === "resolved"  ? "bg-slate-400" :
+                                                        "bg-emerald-500"
+                        )} />
                       </div>
 
-                      {/* Text */}
+                      {/* Text content */}
                       <div className="flex-1 min-w-0">
 
                         {/* Line 1: name + time */}
-                        <div className="flex items-center justify-between gap-1 mb-0.5">
-                          <span className={cn(
-                            "text-sm font-semibold truncate leading-tight",
-                            conv.status === "escalated" ? "text-slate-900" : "text-slate-800"
-                          )}>
+                        <div className="flex items-center justify-between gap-2 mb-0.5">
+                          <span className="text-sm font-bold text-slate-900 truncate">
                             {conv.visitor_name ?? "Anonymous"}
                           </span>
-                          <span className="text-xs text-slate-400 flex-shrink-0 tabular-nums">
+                          <span className="text-xs text-slate-400 flex-shrink-0 tabular-nums whitespace-nowrap">
                             {formatRelativeTime(conv.updated_at)}
                           </span>
                         </div>
 
-                        {/* Line 2: email + status badge */}
-                        <div className="flex items-center justify-between gap-1 mb-1">
-                          <span className="text-xs text-slate-500 truncate">{subLine}</span>
-                          <span className={cn(
-                            "text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 border leading-none",
-                            st.color
-                          )}>
-                            {st.label}
-                          </span>
-                        </div>
+                        {/* Line 2: chatbot name */}
+                        <p className="text-xs text-slate-500 truncate mb-1">
+                          {chatbot?.name ?? "Support bot"}
+                        </p>
 
-                        {/* Line 3: priority + unassigned — exactly like screenshot */}
-                        <div className="flex items-center gap-2.5">
+                        {/* Line 3: priority + unassigned */}
+                        <div className="flex items-center gap-3">
                           {prio && conv.priority !== "low" && (
-                            <span className={cn("text-xs font-semibold flex items-center gap-0.5", prio.color)}>
+                            <span className={cn("text-xs font-semibold flex items-center gap-1", prio.color)}>
                               <Zap className="w-3 h-3" />
                               {prio.label}
                             </span>
