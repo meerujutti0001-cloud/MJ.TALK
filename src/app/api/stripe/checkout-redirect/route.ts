@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getAppUrl } from "@/lib/app-url";
 
 /**
  * GET /api/stripe/checkout-redirect?billing=monthly
@@ -10,9 +11,12 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET(req: NextRequest) {
   const billing = req.nextUrl.searchParams.get("billing") ?? "monthly";
 
-  // Use the incoming request origin — works even if NEXT_PUBLIC_APP_URL is not set
-  const origin = req.nextUrl.origin;
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? origin).replace(/\/$/, "");
+  // getAppUrl() checks NEXT_PUBLIC_APP_URL → VERCEL_URL → hardcoded fallback
+  // Then we also try req.nextUrl.origin as a last resort
+  const configured = getAppUrl();
+  const appUrl = configured !== "https://mj-talk.vercel.app"
+    ? configured
+    : req.nextUrl.origin.replace(/\/$/, "");
 
   // Auth check
   const supabase = await createClient();
