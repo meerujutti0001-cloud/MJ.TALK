@@ -106,30 +106,34 @@ export default async function DashboardPage({
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => (
+        {stats.map((stat) => {
+          const isEscalated = stat.label === "Escalated" && (stat.value as number) > 0;
+          return (
           <Link key={stat.label} href={stat.href}>
-            <Card className={`hover:shadow-md transition-shadow cursor-pointer border ${stat.border}`}>
-              <CardContent className="p-5">
+            <Card className={`hover:shadow-md transition-shadow cursor-pointer border h-full ${stat.border}${isEscalated ? " bg-red-50/40" : ""}`}>
+              <CardContent className="p-5 h-full flex flex-col justify-between">
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-sm text-slate-500 font-medium">{stat.label}</p>
                     <p className="text-3xl font-bold text-slate-900 mt-1">{stat.value}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">{stat.sub}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {isEscalated && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                      )}
+                      <p className={`text-xs ${isEscalated ? "text-red-500 font-semibold" : "text-slate-400"}`}>
+                        {isEscalated ? "Needs attention" : stat.sub}
+                      </p>
+                    </div>
                   </div>
                   <div className={`w-10 h-10 rounded-xl ${stat.bg} flex items-center justify-center flex-shrink-0`}>
                     <stat.icon className={`w-5 h-5 ${stat.color}`} />
                   </div>
                 </div>
-                {stat.label === "Escalated" && (stat.value as number) > 0 && (
-                  <div className="mt-3 flex items-center gap-1 text-xs text-red-600 font-semibold">
-                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                    Needs attention
-                  </div>
-                )}
               </CardContent>
             </Card>
           </Link>
-        ))}
+          );
+        })}
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
