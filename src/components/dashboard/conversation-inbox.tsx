@@ -561,8 +561,7 @@ export function ConversationInbox({
               <p className="text-sm font-semibold text-slate-500">No conversations</p>
               <p className="text-xs text-slate-400 mt-1 leading-relaxed">
                 {search ? "No results — try a different term" : "New visitor chats will appear here"}
-              </p>
-            </div>
+              </p>            </div>
           ) : (
             <div>
               {filtered.map((conv) => {
@@ -584,8 +583,11 @@ export function ConversationInbox({
                       {/* Avatar with status dot (tawk.to style) */}
                       <div className="relative flex-shrink-0">
                         <div
-                          className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold"
-                          style={{ background: chatbot?.widget_color ?? "#0d8585" }}
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold ring-1 ring-black/10"
+                          style={{
+                            background: chatbot?.widget_color ?? "#0d8585",
+                            textShadow: "0 1px 2px rgba(0,0,0,0.4)",
+                          }}
                         >
                           {(conv.visitor_name ?? "?")[0].toUpperCase()}
                         </div>

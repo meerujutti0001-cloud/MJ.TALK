@@ -175,7 +175,7 @@ export default async function DashboardPage({
               <div className="px-6 py-10 text-center">
                 <MessageSquare className="w-8 h-8 text-slate-200 mx-auto mb-2" />
                 <p className="text-sm text-slate-400 font-medium">No conversations yet</p>
-                <p className="text-xs text-slate-300 mt-1">Deploy a chatbot widget to start receiving messages.</p>
+                <p className="text-xs text-slate-400 mt-1">Deploy a chatbot widget to start receiving messages.</p>
                 <Link href="/dashboard/chatbots" className="mt-3 inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium">
                   Go to Chatbots <ArrowRight className="w-3 h-3" />
                 </Link>
@@ -220,7 +220,7 @@ export default async function DashboardPage({
               <div className="px-6 py-10 text-center">
                 <Bot className="w-8 h-8 text-slate-200 mx-auto mb-2" />
                 <p className="text-sm text-slate-400 font-medium">No chatbots yet</p>
-                <p className="text-xs text-slate-300 mt-1">Create your first bot to get started.</p>
+                <p className="text-xs text-slate-400 mt-1">Create your first bot to get started.</p>
                 <Link href="/dashboard/chatbots/new"
                   className="mt-3 inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium">
                   Create chatbot <ArrowRight className="w-3 h-3" />
