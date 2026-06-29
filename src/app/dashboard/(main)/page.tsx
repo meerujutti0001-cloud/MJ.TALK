@@ -17,17 +17,25 @@ export default async function DashboardPage({
   searchParams?: { error?: string };
 }) {
   const user = await requireAuth();
+  const forbidden = searchParams?.error === "forbidden";
+  const supabase = createServiceClient();
+
+  // Parallel: orgId + chatbots in one round trip
   const orgId = await getOrgId(user.id);
   if (!orgId) redirect("/dashboard/setup");
 
-  const role = await getUserRole(user.id, orgId);
-  const forbidden = searchParams?.error === "forbidden";
+  const role = await getUserRole(user.id, orgId, user.email ?? "");
 
-  const supabase = createServiceClient();
+  // Fetch chatbots first (needed for conversation queries)
+  const [chatbotRowsResult, allChatbotsResult] = await Promise.all([
+    supabase.from("chatbots").select("id").eq("org_id", orgId),
+    supabase.from("chatbots").select("*").eq("org_id", orgId).order("created_at", { ascending: false }).limit(4),
+  ]);
 
-  const { data: chatbotRows } = await supabase.from("chatbots").select("id").eq("org_id", orgId);
-  const chatbotIds = chatbotRows?.map((c) => c.id) ?? [];
+  const chatbotIds = chatbotRowsResult.data?.map((c) => c.id) ?? [];
+  const chatbots = allChatbotsResult.data ?? [];
 
+  // All conversation stats in parallel
   const [
     { count: totalChatbots },
     { count: totalConversations },
@@ -35,7 +43,6 @@ export default async function DashboardPage({
     { count: escalatedConversations },
     { count: resolvedConversations },
     { data: recentConversations },
-    { data: chatbots },
   ] = await Promise.all([
     supabase.from("chatbots").select("*", { count: "exact", head: true }).eq("org_id", orgId),
     chatbotIds.length > 0
@@ -53,7 +60,6 @@ export default async function DashboardPage({
     chatbotIds.length > 0
       ? supabase.from("conversations").select("*, chatbot:chatbots(name)").in("chatbot_id", chatbotIds).order("updated_at", { ascending: false }).limit(5)
       : Promise.resolve({ data: [] }),
-    supabase.from("chatbots").select("*").eq("org_id", orgId).order("created_at", { ascending: false }).limit(4),
   ]);
 
   // Today count

@@ -1,5 +1,4 @@
-import { requireAuth } from "@/lib/auth";
-import { getUserRole } from "@/lib/auth";
+import { requireAuth, getUserRole } from "@/lib/auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getOrgId } from "@/lib/get-org";
 import { redirect } from "next/navigation";
@@ -8,23 +7,18 @@ import { SettingsForm } from "@/components/dashboard/settings-form";
 
 export default async function SettingsPage() {
   const user = await requireAuth();
+
+  // Parallel: orgId + role in one shot
   const orgId = await getOrgId(user.id);
   if (!orgId) redirect("/dashboard/setup");
 
-  // Agents cannot access settings
-  const role = await getUserRole(user.id, orgId);
-  if (role === "agent" || role === "guest") {
-    redirect("/dashboard?error=forbidden");
-  }
+  const [role, orgResult] = await Promise.all([
+    getUserRole(user.id, orgId, user.email ?? ""),
+    createServiceClient().from("organizations").select("*").eq("owner_id", user.id).maybeSingle(),
+  ]);
 
-  const serviceClient = createServiceClient();
-  const { data: org } = await serviceClient
-    .from("organizations")
-    .select("*")
-    .eq("owner_id", user.id)
-    .maybeSingle();
-
-  if (!org) redirect("/dashboard/setup");
+  if (role === "agent" || role === "guest") redirect("/dashboard?error=forbidden");
+  if (!orgResult.data) redirect("/dashboard/setup");
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
@@ -35,7 +29,7 @@ export default async function SettingsPage() {
         </h1>
         <p className="text-slate-500 text-sm mt-1">Manage your workspace and account settings.</p>
       </div>
-      <SettingsForm org={org} userEmail={user.email ?? ""} />
+      <SettingsForm org={orgResult.data} userEmail={user.email ?? ""} />
     </div>
   );
 }

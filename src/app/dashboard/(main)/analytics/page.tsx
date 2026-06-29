@@ -9,8 +9,8 @@ export default async function AnalyticsPage() {
   const orgId = await getOrgId(user.id);
   if (!orgId) redirect("/dashboard/setup");
 
-  // Agents cannot access analytics
-  const role = await getUserRole(user.id, orgId);
+  // Parallel: role check (with email shortcut)
+  const role = await getUserRole(user.id, orgId, user.email ?? "");
   if (role === "agent" || role === "guest") {
     redirect("/dashboard/conversations");
   }

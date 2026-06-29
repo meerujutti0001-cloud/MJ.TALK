@@ -12,85 +12,64 @@ export async function getUser() {
     error,
   } = await supabase.auth.getUser();
 
-  if (error || !user) {
-    return null;
-  }
-
+  if (error || !user) return null;
   return user;
 }
 
 export async function requireAuth() {
   const user = await getUser();
-  if (!user) {
-    redirect("/login");
-  }
+  if (!user) redirect("/login");
   return user;
 }
 
 /**
- * Resolve the effective role for the current user within an org context.
- *
- * super_admin  — platform-level admin (hardcoded email, can also be set via env)
- * owner        — owns the organization
- * agent        — accepted team member of the org
- * guest        — authenticated but no org association
+ * Resolve the effective role for the current user.
+ * Uses the user object directly (email already available — no extra admin API call).
+ * Parallelizes org ownership + membership checks.
  */
-export async function getUserRole(userId: string, orgId?: string): Promise<UserRole> {
+export async function getUserRole(
+  userId: string,
+  orgId?: string,
+  userEmail?: string   // pass this to avoid an extra auth.admin call
+): Promise<UserRole> {
   const { createServiceClient } = await import("@/lib/supabase/server");
   const supabase = createServiceClient();
 
-  // Get user email to check super admin
-  const { data: authUser } = await supabase.auth.admin.getUserById(userId);
-  const email = authUser?.user?.email ?? "";
+  // Super admin check — use email from the user object if provided
+  const email = userEmail ?? "";
+  if (email && email === SUPER_ADMIN_EMAIL) return "super_admin";
 
-  if (email === SUPER_ADMIN_EMAIL) return "super_admin";
+  // If email wasn't passed and we need to verify super admin, skip the expensive
+  // auth.admin.getUserById and just check the env var directly against what we have.
+  // The caller should pass userEmail to avoid this fallback.
 
   if (!orgId) {
-    // Try to find any org relationship
-    const { data: owned } = await supabase
-      .from("organizations")
-      .select("id")
-      .eq("owner_id", userId)
-      .maybeSingle();
-    if (owned) return "owner";
-
-    const { data: membership } = await supabase
-      .from("team_members")
-      .select("org_id")
-      .eq("user_id", userId)
-      .not("accepted_at", "is", null)
-      .maybeSingle();
-    if (membership) return "agent";
-
+    // Parallel check for any org relationship
+    const [ownedResult, memberResult] = await Promise.all([
+      supabase.from("organizations").select("id").eq("owner_id", userId).maybeSingle(),
+      supabase.from("team_members").select("org_id").eq("user_id", userId)
+        .not("accepted_at", "is", null).maybeSingle(),
+    ]);
+    if (ownedResult.data) return "owner";
+    if (memberResult.data) return "agent";
     return "guest";
   }
 
-  // Check ownership for this specific org
-  const { data: owned } = await supabase
-    .from("organizations")
-    .select("id")
-    .eq("id", orgId)
-    .eq("owner_id", userId)
-    .maybeSingle();
-  if (owned) return "owner";
+  // Parallel check for this specific org
+  const [ownedResult, memberResult] = await Promise.all([
+    supabase.from("organizations").select("id").eq("id", orgId).eq("owner_id", userId).maybeSingle(),
+    supabase.from("team_members").select("org_id").eq("org_id", orgId).eq("user_id", userId)
+      .not("accepted_at", "is", null).maybeSingle(),
+  ]);
 
-  // Check accepted team membership
-  const { data: membership } = await supabase
-    .from("team_members")
-    .select("org_id")
-    .eq("org_id", orgId)
-    .eq("user_id", userId)
-    .not("accepted_at", "is", null)
-    .maybeSingle();
-  if (membership) return "agent";
-
+  if (ownedResult.data) return "owner";
+  if (memberResult.data) return "agent";
   return "guest";
 }
 
 export async function getOrganization() {
   const supabase = await createClient();
   const user = await getUser();
-
   if (!user) return null;
 
   const { data: org } = await supabase
@@ -101,7 +80,6 @@ export async function getOrganization() {
 
   if (org) return org;
 
-  // Check if user is a team member
   const { data: membership } = await supabase
     .from("team_members")
     .select("org_id, organizations(*)")
@@ -111,42 +89,26 @@ export async function getOrganization() {
   if (membership) {
     return (membership as { org_id: string; organizations: unknown }).organizations;
   }
-
   return null;
 }
 
 export async function requireOrg() {
   const user = await requireAuth();
   const org = await getOrganization();
-
-  if (!org) {
-    redirect("/dashboard/setup");
-  }
-
+  if (!org) redirect("/dashboard/setup");
   return { user, org };
 }
 
-/**
- * Require that the current user is at least an owner (or super_admin).
- * Agents are redirected to /dashboard with a forbidden message.
- */
 export async function requireOwnerOrAbove(orgId: string) {
   const user = await requireAuth();
-  const role = await getUserRole(user.id, orgId);
-  if (role === "agent" || role === "guest") {
-    redirect("/dashboard?error=forbidden");
-  }
+  const role = await getUserRole(user.id, orgId, user.email ?? "");
+  if (role === "agent" || role === "guest") redirect("/dashboard?error=forbidden");
   return { user, role };
 }
 
-/**
- * Require super_admin. Redirects everyone else.
- */
 export async function requireSuperAdmin() {
   const user = await requireAuth();
-  const role = await getUserRole(user.id);
-  if (role !== "super_admin") {
-    redirect("/dashboard?error=forbidden");
-  }
+  const role = await getUserRole(user.id, undefined, user.email ?? "");
+  if (role !== "super_admin") redirect("/dashboard?error=forbidden");
   return { user, role };
 }

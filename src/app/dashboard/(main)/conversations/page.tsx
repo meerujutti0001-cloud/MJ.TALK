@@ -15,16 +15,31 @@ export default async function ConversationsPage({
 
   const supabase = createServiceClient();
 
-  // Fetch chatbots for filter dropdown
-  const { data: chatbots } = await supabase
+  // Build conversation list query
+  const chatbotsPromise = supabase
     .from("chatbots")
     .select("id, name, widget_color")
     .eq("org_id", orgId)
     .order("name");
 
+  // If a specific conversation is selected, fetch it + messages in parallel
+  const selectedConvPromise = searchParams.id
+    ? supabase
+        .from("conversations")
+        .select("*, chatbot:chatbots(id, name, widget_color, escalation_keyword)")
+        .eq("id", searchParams.id)
+        .maybeSingle()
+    : Promise.resolve({ data: null });
+
+  // Run chatbots + selected conv in parallel
+  const [{ data: chatbots }, selectedConvResult] = await Promise.all([
+    chatbotsPromise,
+    selectedConvPromise,
+  ]);
+
   const chatbotIds = chatbots?.map((c) => c.id) ?? [];
 
-  // Build conversation query
+  // Build filtered conversations query + messages in parallel
   let query = supabase
     .from("conversations")
     .select("*, chatbot:chatbots(id, name, widget_color)")
@@ -34,45 +49,30 @@ export default async function ConversationsPage({
   if (searchParams.status && ["open", "escalated", "resolved"].includes(searchParams.status)) {
     query = query.eq("status", searchParams.status);
   }
-  if (searchParams.chatbot) {
-    query = query.eq("chatbot_id", searchParams.chatbot);
-  }
+  if (searchParams.chatbot) query = query.eq("chatbot_id", searchParams.chatbot);
   if (searchParams.q) {
-    query = query.or(
-      `visitor_name.ilike.%${searchParams.q}%,visitor_email.ilike.%${searchParams.q}%`
-    );
+    query = query.or(`visitor_name.ilike.%${searchParams.q}%,visitor_email.ilike.%${searchParams.q}%`);
   }
 
-  const { data: conversations } = await query.limit(100);
+  const selectedConv = selectedConvResult.data;
 
-  // Fetch selected conversation + its messages
-  let selectedConversation = null;
-  let messages = null;
-
-  if (searchParams.id) {
-    const { data: conv } = await supabase
-      .from("conversations")
-      .select("*, chatbot:chatbots(id, name, widget_color, escalation_keyword)")
-      .eq("id", searchParams.id)
-      .maybeSingle();
-
-    selectedConversation = conv;
-
-    if (conv) {
-      const { data: msgs } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("conversation_id", conv.id)
-        .order("created_at", { ascending: true });
-      messages = msgs;
-    }
-  }
+  // Conversations list + messages for selected conv — in parallel
+  const [{ data: conversations }, { data: messages }] = await Promise.all([
+    query.limit(100),
+    selectedConv
+      ? supabase
+          .from("messages")
+          .select("*")
+          .eq("conversation_id", selectedConv.id)
+          .order("created_at", { ascending: true })
+      : Promise.resolve({ data: null }),
+  ]);
 
   return (
     <ConversationInbox
       conversations={conversations ?? []}
       chatbots={chatbots ?? []}
-      selectedConversation={selectedConversation}
+      selectedConversation={selectedConv}
       messages={messages ?? []}
       searchParams={searchParams}
     />
