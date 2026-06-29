@@ -1,6 +1,5 @@
 import { requireAuth } from "@/lib/auth";
 import { createServiceClient } from "@/lib/supabase/server";
-import { getOrgId } from "@/lib/get-org";
 import { redirect } from "next/navigation";
 import { Users } from "lucide-react";
 import { TeamManagement } from "@/components/dashboard/team-management";
@@ -9,31 +8,26 @@ export default async function TeamPage() {
   const user = await requireAuth();
   const supabase = createServiceClient();
 
+  // Parallel: owned org + agent membership
+  const [ownedOrgResult, membershipResult] = await Promise.all([
+    supabase.from("organizations").select("id, name").eq("owner_id", user.id).maybeSingle(),
+    supabase.from("team_members").select("org_id").eq("user_id", user.id).not("accepted_at", "is", null).maybeSingle(),
+  ]);
+
   let orgId: string | null = null;
   let orgName = "";
   let isOwner = false;
 
-  const { data: ownedOrg } = await supabase
-    .from("organizations")
-    .select("id, name")
-    .eq("owner_id", user.id)
-    .maybeSingle();
-
-  if (ownedOrg) {
-    orgId = ownedOrg.id;
-    orgName = ownedOrg.name;
+  if (ownedOrgResult.data) {
+    orgId = ownedOrgResult.data.id;
+    orgName = ownedOrgResult.data.name;
     isOwner = true;
-  } else {
-    const resolvedOrgId = await getOrgId(user.id);
-    if (resolvedOrgId) {
-      orgId = resolvedOrgId;
-      const { data: memberOrg } = await supabase
-        .from("organizations")
-        .select("id, name")
-        .eq("id", resolvedOrgId)
-        .maybeSingle();
-      orgName = memberOrg?.name ?? "";
-    }
+  } else if (membershipResult.data?.org_id) {
+    orgId = membershipResult.data.org_id;
+    // Fetch org name (needed for invite links)
+    const { data: memberOrg } = await supabase
+      .from("organizations").select("id, name").eq("id", orgId).maybeSingle();
+    orgName = memberOrg?.name ?? "";
   }
 
   if (!orgId) redirect("/dashboard/setup");
